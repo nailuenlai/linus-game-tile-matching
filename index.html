@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="description"
+      content="斯普拉遁3 消消樂 (Splat Crush 3) — 100 關三消益智遊戲，直消 4K 狙擊槍、橫消斯普拉炸彈，過關解鎖 100 枚從菜鳥到傳說的斯普拉遁3 徽章！"
+    />
+    <title>SPLAT CRUSH 3 — 斯普拉遁3 武器消消樂</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- 3D Three.js Canvas Mount -->
+      <div id="canvas-container" aria-label="斯普拉遁3 消消樂棋盤"></div>
+
+      <!-- Transparent Mobile-Safe HUD Overlay -->
+      <div id="hud">
+        <!-- Top Status Bar -->
+        <header id="top-bar" class="hud-interactive">
+          <div class="top-row">
+            <button id="btn-level-pill" class="level-pill" type="button" aria-label="開啟關卡地圖">
+              <span class="level-tag" id="hud-level-num">LV.1</span>
+              <span class="level-title-wrap">
+                <span class="level-name" id="hud-level-name">蠻頹鎮廣場・開幕暖身</span>
+                <span class="level-reward-hint" id="hud-badge-hint">通關徽章：破舊塗地貼紙</span>
+              </span>
+            </button>
+
+            <div class="moves-box" id="hud-moves-box" aria-live="polite">
+              <span class="moves-label">步數</span>
+              <span class="moves-value" id="hud-moves">22</span>
+            </div>
+          </div>
+
+          <div class="goals-score-row">
+            <div class="goals-strip" id="hud-goals"></div>
+            <div class="score-box">
+              <div class="score-header">
+                <span class="score-val" id="hud-score">0</span>
+                <span class="stars-mini" id="hud-stars">☆☆☆</span>
+              </div>
+              <div class="score-bar-track">
+                <div class="score-bar-fill" id="hud-score-fill"></div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Dynamic Action Callout (4K Sniper / Splat Bomb / Combo) -->
+        <div id="callout-banner" class="callout-banner hidden" aria-live="polite"></div>
+
+        <!-- Bottom Action Dock -->
+        <footer id="bottom-dock">
+          <div class="mechanic-strip">
+            <span class="mech-chip mech-4k">直消 = 4K 狙擊槍</span>
+            <span class="mech-chip mech-bomb">橫消 = 斯普拉炸彈</span>
+          </div>
+          <nav class="dock-buttons hud-interactive" aria-label="遊戲功能列">
+            <button id="btn-map" class="dock-btn" type="button">
+              <span class="dock-icon">🗺️</span>
+              <span class="dock-label">100關</span>
+            </button>
+            <button id="btn-badges" class="dock-btn" type="button">
+              <span class="dock-icon">🏅</span>
+              <span class="dock-label" id="dock-badge-count">徽章 0</span>
+            </button>
+            <button id="btn-hint" class="dock-btn" type="button">
+              <span class="dock-icon">💡</span>
+              <span class="dock-label">提示</span>
+            </button>
+            <button id="btn-restart" class="dock-btn" type="button">
+              <span class="dock-icon">🔄</span>
+              <span class="dock-label">重玩</span>
+            </button>
+            <button id="btn-sound" class="dock-btn" type="button" aria-label="音效開關">
+              <span class="dock-icon" id="sound-icon">🔊</span>
+              <span class="dock-label">音效</span>
+            </button>
+          </nav>
+        </footer>
+      </div>
+
+      <!-- Title Screen Overlay -->
+      <section id="title-overlay" class="overlay-backdrop" aria-label="開始畫面">
+        <div class="title-card">
+          <div class="title-kicker">SPLATOON 3 MATCH-3</div>
+          <h1 class="game-title">SPLAT CRUSH <span>3</span></h1>
+          <p class="title-sub">斯普拉遁3 武器消消樂・100 關徽章制霸</p>
+
+          <div class="weapon-showcase" id="title-weapon-showcase"></div>
+
+          <div class="rules-grid">
+            <div class="rule-card rule-4k">
+              <img id="rule-img-4k" alt="4K 狙擊槍" />
+              <div>
+                <strong>直向消除 → 4K 狙擊槍</strong>
+                <p>直排 3 消發射狙擊雷射；4 消生成貫穿整列 4K！</p>
+              </div>
+            </div>
+            <div class="rule-card rule-bomb">
+              <img id="rule-img-bomb" alt="斯普拉炸彈" />
+              <div>
+                <strong>橫向消除 → 斯普拉炸彈</strong>
+                <p>橫排 3 消引爆三角炸彈；4 消生成橫掃整行炸彈！</p>
+              </div>
+            </div>
+          </div>
+
+          <p class="badge-teaser">
+            🏅 每過一關獲得專屬徽章：從第 1 關<strong>菜鳥貼紙</strong>一路晉升到第 100 關<strong>傳說神話王冠</strong>！
+          </p>
+
+          <div class="title-actions">
+            <button id="btn-start-play" class="btn-primary-splat" type="button">
+              開始塗地挑戰！
+            </button>
+            <button id="btn-title-map" class="btn-secondary-splat" type="button">
+              查看 100 關
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Level Result & Badge Unlock Modal -->
+      <section id="result-modal" class="overlay-backdrop hidden" aria-label="關卡結算">
+        <div class="modal-card result-card">
+          <div id="result-status-tag" class="result-tag">STAGE CLEAR!</div>
+          <h2 id="result-title" class="result-title">第 1 關 通關！</h2>
+          <div id="result-stars" class="result-stars">★★★</div>
+          <div id="result-score-line" class="result-score-line">得分 2,400</div>
+
+          <div id="result-badge-panel" class="badge-unlock-panel">
+            <div class="badge-unlock-header">
+              <span id="result-badge-new" class="new-pill">NEW BADGE!</span>
+              <span id="result-badge-tier" class="tier-pill">菜鳥貼紙</span>
+            </div>
+            <div class="badge-unlock-body">
+              <img id="result-badge-img" class="badge-unlock-img" alt="通關徽章" />
+              <div class="badge-unlock-info">
+                <strong id="result-badge-name">破舊塗地貼紙</strong>
+                <p id="result-badge-sub">邊角有點捲起來的免費貼紙</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-actions">
+            <button id="btn-result-next" class="btn-primary-splat" type="button">下一關</button>
+            <button id="btn-result-retry" class="btn-secondary-splat" type="button">再玩一次</button>
+            <button id="btn-result-badges" class="btn-ghost-splat" type="button">查看徽章櫃</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 100-Level Map Modal -->
+      <section id="map-modal" class="overlay-backdrop hidden" aria-label="100 關卡地圖">
+        <div class="modal-card modal-tall">
+          <div class="modal-header">
+            <div>
+              <h2>100 關挑戰地圖</h2>
+              <p id="map-progress-sub">已通關 0 / 100 關・⭐ 0 / 300</p>
+            </div>
+            <button id="btn-close-map" class="close-btn" type="button" aria-label="關閉地圖">✕</button>
+          </div>
+
+          <div class="sandbox-bar">
+            <label class="sandbox-toggle" for="toggle-sandbox">
+              <input id="toggle-sandbox" type="checkbox" />
+              <span>自由選關模式（立即體驗全部 100 關與高難度徽章）</span>
+            </label>
+          </div>
+
+          <!-- Layer 2.5 Horizontal Chapter Tabs -->
+          <div id="chapter-tabs" class="chapter-tabs scroll-x"></div>
+
+          <!-- Layer 2.5 Vertical Level Grid -->
+          <div id="level-grid-wrap" class="level-grid-wrap scroll-y">
+            <div id="chapter-banner" class="chapter-banner"></div>
+            <div id="level-grid" class="level-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 100-Badge Locker & Splashtag Modal -->
+      <section id="badge-modal" class="overlay-backdrop hidden" aria-label="徽章圖鑑與名牌">
+        <div class="modal-card modal-tall">
+          <div class="modal-header">
+            <div>
+              <h2>斯普拉遁3 徽章圖鑑</h2>
+              <p id="badge-progress-sub">已收集 0 / 100 枚・點擊已解鎖徽章裝備至名牌</p>
+            </div>
+            <button id="btn-close-badges" class="close-btn" type="button" aria-label="關閉徽章櫃">✕</button>
+          </div>
+
+          <!-- Personal Splashtag Preview -->
+          <div class="splashtag-banner">
+            <div class="splashtag-left">
+              <span class="splashtag-title">蠻頹鎮三消新星</span>
+              <strong class="splashtag-name">INKLING #003</strong>
+            </div>
+            <div id="splashtag-slots" class="splashtag-slots"></div>
+          </div>
+
+          <!-- Tier Filter Bar (Horizontal Scroll) -->
+          <div id="badge-tier-tabs" class="chapter-tabs scroll-x"></div>
+
+          <!-- 100 Badges Scrollable Grid -->
+          <div id="badge-grid-wrap" class="badge-grid-wrap scroll-y">
+            <div id="badge-grid" class="badge-grid"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
