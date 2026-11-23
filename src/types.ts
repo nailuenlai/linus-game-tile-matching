@@ -1,3 +1,5 @@
+import type { Splat3BadgeCategory } from './data/splat3Badges.generated';
+
 export type WeaponId = 0 | 1 | 2 | 3 | 4 | 5;
 
 export type SpecialType = 'none' | 'eliter4k' | 'splatbomb' | 'booyah';
@@ -6,9 +8,11 @@ export type BlockerType = 'none' | 'crate1' | 'crate2' | 'ooze';
 
 export interface WeaponDef {
   id: WeaponId;
+  rowId: string;
   nameZh: string;
   nameEn: string;
   shortZh: string;
+  imgUrl: string;
   primaryHex: string;
   secondaryHex: string;
   darkHex: string;
@@ -19,17 +23,22 @@ export interface WeaponDef {
 
 export type BadgeTier = 'rookie' | 'bronze' | 'silver' | 'gold' | 'holo' | 'mythic';
 
+export type BadgeCategory = Splat3BadgeCategory;
+
 export interface BadgeDef {
   level: number;
   id: string;
+  imgUrl: string;
   nameZh: string;
   subtitleZh: string;
+  category: BadgeCategory;
+  difficulty: number; // 1..100 mapped directly from real Splatoon 3 v12.0.0 badge acquisition difficulty
   tier: BadgeTier;
   tierLabelZh: string;
-  iconKey: string;
   accentHex: string;
   bgHex: string;
   stars: number;
+  weaponRowId?: string;
 }
 
 export interface LevelGoal {
@@ -42,6 +51,7 @@ export interface ChapterDef {
   id: number;
   nameZh: string;
   subtitleZh: string;
+  tier: BadgeTier;
   themeHex: string;
   accentHex: string;
   bgTopHex: string;
@@ -53,7 +63,9 @@ export interface ChapterDef {
 export interface LevelDef {
   level: number;
   chapterId: number;
+  difficulty: number; // 1..100 from corresponding Splatoon 3 badge
   nameZh: string;
+  weaponRowIds: readonly [string, string, string, string, string, string];
   rows: number;
   cols: number;
   weaponCount: 5 | 6;

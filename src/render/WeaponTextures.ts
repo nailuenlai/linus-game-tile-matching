@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import type { BlockerType, SpecialType, WeaponId } from '../types';
-import { WEAPONS } from '../data/weapons';
+import {
+  DEFAULT_WEAPON_ROW_IDS,
+  SPECIAL_ICON_URLS,
+  WEAPONS,
+  getWeaponImgUrl,
+} from '../data/weapons';
 
 const SIZE = 256;
 
@@ -45,16 +50,15 @@ function drawSplatoonTileBase(
   const cy = SIZE / 2;
 
   ctx.save();
-  // Distinct outer badge silhouette per weapon for instant shape+color recognition
   ctx.beginPath();
   if (shape === 'roundedSquare') {
-    drawRoundedRect(ctx, 18, 18, SIZE - 36, SIZE - 36, 48);
+    drawRoundedRect(ctx, 16, 16, SIZE - 32, SIZE - 32, 46);
   } else if (shape === 'cushion') {
-    drawRoundedRect(ctx, 14, 24, SIZE - 28, SIZE - 48, 66);
+    drawRoundedRect(ctx, 12, 22, SIZE - 24, SIZE - 44, 64);
   } else if (shape === 'octagon') {
-    const rad = 112;
+    const rad = 114;
     for (let i = 0; i < 8; i++) {
-      const a = (Math.PI / 8) + (i * Math.PI) / 4;
+      const a = Math.PI / 8 + (i * Math.PI) / 4;
       const px = cx + Math.cos(a) * rad;
       const py = cy + Math.sin(a) * rad;
       if (i === 0) ctx.moveTo(px, py);
@@ -62,7 +66,7 @@ function drawSplatoonTileBase(
     }
     ctx.closePath();
   } else if (shape === 'bucketHex') {
-    const rad = 112;
+    const rad = 114;
     for (let i = 0; i < 6; i++) {
       const a = -Math.PI / 2 + (i * Math.PI) / 3;
       const px = cx + Math.cos(a) * rad;
@@ -72,406 +76,131 @@ function drawSplatoonTileBase(
     }
     ctx.closePath();
   } else if (shape === 'diamond') {
-    ctx.moveTo(cx, 12);
-    ctx.quadraticCurveTo(SIZE - 16, 44, SIZE - 12, cy);
-    ctx.quadraticCurveTo(SIZE - 16, SIZE - 44, cx, SIZE - 12);
-    ctx.quadraticCurveTo(16, SIZE - 44, 12, cy);
-    ctx.quadraticCurveTo(16, 44, cx, 12);
+    ctx.moveTo(cx, 10);
+    ctx.quadraticCurveTo(SIZE - 14, 42, SIZE - 10, cy);
+    ctx.quadraticCurveTo(SIZE - 14, SIZE - 42, cx, SIZE - 10);
+    ctx.quadraticCurveTo(14, SIZE - 42, 10, cy);
+    ctx.quadraticCurveTo(14, 42, cx, 10);
     ctx.closePath();
   } else {
-    // Shield
-    ctx.moveTo(cx, 16);
-    ctx.lineTo(SIZE - 26, 46);
-    ctx.quadraticCurveTo(SIZE - 20, 155, cx, SIZE - 14);
-    ctx.quadraticCurveTo(20, 155, 26, 46);
+    ctx.moveTo(cx, 14);
+    ctx.lineTo(SIZE - 24, 44);
+    ctx.quadraticCurveTo(SIZE - 18, 156, cx, SIZE - 12);
+    ctx.quadraticCurveTo(18, 156, 24, 44);
     ctx.closePath();
   }
 
-  // Deep drop ink gradient
-  const grad = ctx.createRadialGradient(cx - 28, cy - 36, 18, cx, cy, 125);
+  // Deep vibrant Splatoon ink badge backing
+  const grad = ctx.createRadialGradient(cx - 28, cy - 36, 16, cx, cy, 128);
   grad.addColorStop(0, rim);
   grad.addColorStop(0.28, primary);
   grad.addColorStop(1, dark);
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Bold Splatoon sticker white+ink outline
+  // Crisp Splatoon sticker border
   ctx.lineWidth = 10;
   ctx.strokeStyle = '#FFFFFF';
   ctx.stroke();
 
   ctx.lineWidth = 4;
-  ctx.strokeStyle = 'rgba(15, 23, 42, 0.55)';
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.58)';
   ctx.stroke();
 
-  // Glossy top candy/ink reflection
+  // Subtle dark inner vignette so official Splatoon 3 weapon art pops cleanly regardless of weapon color
   ctx.save();
   ctx.clip();
-  const gloss = ctx.createLinearGradient(0, 14, 0, 118);
-  gloss.addColorStop(0, 'rgba(255,255,255,0.52)');
+  const innerShade = ctx.createRadialGradient(cx, cy, 24, cx, cy, 108);
+  innerShade.addColorStop(0, 'rgba(15, 23, 42, 0.24)');
+  innerShade.addColorStop(0.75, 'rgba(15, 23, 42, 0.14)');
+  innerShade.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
+  ctx.fillStyle = innerShade;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  const gloss = ctx.createLinearGradient(0, 12, 0, 105);
+  gloss.addColorStop(0, 'rgba(255,255,255,0.44)');
   gloss.addColorStop(1, 'rgba(255,255,255,0.0)');
   ctx.fillStyle = gloss;
   ctx.beginPath();
-  ctx.ellipse(cx, 54, 96, 42, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, 48, 96, 38, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // Subtle halftone ink dots at bottom
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  for (let x = 36; x < SIZE - 28; x += 22) {
-    ctx.beginPath();
-    ctx.arc(x, SIZE - 44, 5, 0, Math.PI * 2);
-    ctx.fill();
-  }
   ctx.restore();
+
   ctx.restore();
 }
 
-function drawWeaponIllustration(ctx: CanvasRenderingContext2D, weaponId: WeaponId): void {
+/**
+ * Draws a real Splatoon 3 weapon PNG/WebP with a bold dark Splatoon sticker silhouette
+ * so it remains ultra-legible on every ink color background at mobile tile sizes.
+ */
+function drawRealWeaponSprite(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement | null,
+  scale = 0.78,
+  rotationRad = 0,
+): void {
+  if (!img || !img.complete || img.naturalWidth === 0) return;
+  const cx = SIZE / 2;
+  const cy = SIZE / 2;
+  const drawSize = SIZE * scale;
+
   ctx.save();
-  ctx.translate(SIZE / 2, SIZE / 2);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.translate(cx, cy);
+  if (rotationRad !== 0) ctx.rotate(rotationRad);
 
-  // Crisp dark drop shadow under weapon icon for high readability
-  ctx.shadowColor = 'rgba(10, 14, 24, 0.55)';
+  // Soft dark halo / shadow for unmistakable contrast
+  ctx.shadowColor = 'rgba(10, 14, 24, 0.85)';
   ctx.shadowBlur = 10;
-  ctx.shadowOffsetY = 5;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 4;
+  ctx.drawImage(img, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
 
-  switch (weaponId) {
-    case 0: {
-      // Splattershot (斯普拉射擊槍) — iconic yellow/blue shooter
-      ctx.rotate(-0.22);
-      // Grip
-      ctx.fillStyle = '#1E293B';
-      drawRoundedRect(ctx, -40, 12, 24, 48, 8);
-      ctx.fill();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 5;
-      ctx.stroke();
-
-      // Main barrel body
-      ctx.fillStyle = '#FFFDF5';
-      drawRoundedRect(ctx, -64, -18, 122, 42, 16);
-      ctx.fill();
-      ctx.stroke();
-
-      // Blue ink stripe & nozzle
-      ctx.fillStyle = '#0091FF';
-      drawRoundedRect(ctx, 44, -14, 28, 34, 8);
-      ctx.fill();
-      ctx.stroke();
-
-      // Top transparent/blue ink tank bottle
-      ctx.fillStyle = '#00B4FF';
-      drawRoundedRect(ctx, -38, -56, 62, 34, 14);
-      ctx.fill();
-      ctx.stroke();
-
-      // Highlight on tank
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      drawRoundedRect(ctx, -28, -48, 38, 9, 4);
-      ctx.fill();
-
-      // Bright yellow accent band
-      ctx.fillStyle = '#FFD600';
-      drawRoundedRect(ctx, -22, -8, 44, 18, 6);
-      ctx.fill();
-      break;
-    }
-
-    case 1: {
-      // Splat Roller (斯普拉滾筒) — wide ink roller + diagonal handle
-      ctx.rotate(-0.35);
-      // Handle shaft
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 18;
-      ctx.beginPath();
-      ctx.moveTo(0, 68);
-      ctx.lineTo(0, -14);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#1E293B';
-      ctx.lineWidth = 10;
-      ctx.beginPath();
-      ctx.moveTo(0, 66);
-      ctx.lineTo(0, -14);
-      ctx.stroke();
-
-      // Cyan fork bracket
-      ctx.strokeStyle = '#00F0FF';
-      ctx.lineWidth = 10;
-      ctx.beginPath();
-      ctx.moveTo(-48, -14);
-      ctx.lineTo(48, -14);
-      ctx.lineTo(48, -32);
-      ctx.moveTo(-48, -14);
-      ctx.lineTo(-48, -32);
-      ctx.stroke();
-
-      // Big roller sponge cylinder dripping neon pink
-      ctx.fillStyle = '#FFFFFF';
-      drawRoundedRect(ctx, -66, -64, 132, 42, 18);
-      ctx.fill();
-      ctx.strokeStyle = '#1E293B';
-      ctx.lineWidth = 6;
-      ctx.stroke();
-
-      ctx.fillStyle = '#FF2E93';
-      drawRoundedRect(ctx, -56, -56, 112, 26, 12);
-      ctx.fill();
-
-      // Ink drips
-      ctx.fillStyle = '#FFE4F2';
-      ctx.beginPath();
-      ctx.arc(-30, -45, 7, 0, Math.PI * 2);
-      ctx.arc(8, -45, 5, 0, Math.PI * 2);
-      ctx.arc(34, -42, 6, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    }
-
-    case 2: {
-      // Splat Dualies (斯普拉機動槍) — twin crossed compact ink pistols
-      const drawSingleDualie = (flip: number): void => {
-        ctx.save();
-        ctx.scale(flip, 1);
-        ctx.translate(-14, 4);
-        ctx.rotate(-0.38);
-
-        ctx.fillStyle = '#102A6B';
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 5;
-        // Handle
-        drawRoundedRect(ctx, -28, 6, 18, 36, 6);
-        ctx.fill();
-        ctx.stroke();
-        // Sleek body
-        ctx.fillStyle = '#FFFFFF';
-        drawRoundedRect(ctx, -40, -18, 76, 28, 11);
-        ctx.fill();
-        ctx.stroke();
-        // Twin cyan nozzle
-        ctx.fillStyle = '#00E5FF';
-        drawRoundedRect(ctx, 26, -15, 22, 22, 6);
-        ctx.fill();
-        ctx.stroke();
-        // Top mini tank
-        ctx.fillStyle = '#1D4ED8';
-        drawRoundedRect(ctx, -26, -34, 34, 16, 7);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-      };
-      drawSingleDualie(-1);
-      drawSingleDualie(1);
-      break;
-    }
-
-    case 3: {
-      // Slosher (飛濺潑桶) — tilted paint bucket with sloshing wave
-      ctx.rotate(-0.18);
-      // Carry handle arch
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 10;
-      ctx.beginPath();
-      ctx.arc(0, -24, 44, Math.PI, 0);
-      ctx.stroke();
-
-      // Ink splash wave leaping out
-      ctx.fillStyle = '#FFF5C0';
-      ctx.beginPath();
-      ctx.moveTo(-46, -24);
-      ctx.quadraticCurveTo(-18, -68, 12, -46);
-      ctx.quadraticCurveTo(38, -72, 54, -24);
-      ctx.closePath();
-      ctx.fill();
-
-      // Bucket body trapezoid
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#1E293B';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(-54, -24);
-      ctx.lineTo(54, -24);
-      ctx.lineTo(40, 56);
-      ctx.lineTo(-40, 56);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Bold orange racing stripe on bucket
-      ctx.fillStyle = '#FF5500';
-      ctx.beginPath();
-      ctx.moveTo(-46, 0);
-      ctx.lineTo(46, 0);
-      ctx.lineTo(42, 28);
-      ctx.lineTo(-42, 28);
-      ctx.closePath();
-      ctx.fill();
-
-      // Top rim
-      ctx.fillStyle = '#FFE066';
-      drawRoundedRect(ctx, -60, -34, 120, 18, 9);
-      ctx.fill();
-      ctx.stroke();
-      break;
-    }
-
-    case 4: {
-      // Splatana Wiper (雨刷刮水刀) — diagonal katana wiper blade
-      ctx.rotate(-0.75);
-      // Long sleek wiper blade
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#1E293B';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(-76, -12);
-      ctx.lineTo(44, -18);
-      ctx.lineTo(78, 0);
-      ctx.lineTo(44, 16);
-      ctx.lineTo(-76, 12);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Neon acid-lime wiper rubber edge
-      ctx.fillStyle = '#7CFF00';
-      ctx.beginPath();
-      ctx.moveTo(-52, -12);
-      ctx.lineTo(46, -16);
-      ctx.lineTo(70, -2);
-      ctx.lineTo(-52, -2);
-      ctx.closePath();
-      ctx.fill();
-
-      // Guard (Tsuba)
-      ctx.fillStyle = '#1E293B';
-      drawRoundedRect(ctx, -44, -28, 16, 56, 6);
-      ctx.fill();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-
-      // Hilt
-      ctx.fillStyle = '#334155';
-      drawRoundedRect(ctx, -84, -10, 40, 20, 8);
-      ctx.fill();
-      ctx.stroke();
-      break;
-    }
-
-    case 5: {
-      // Tri-Stringer (三發獵魚弓) — curved bow + 3 golden arrows
-      ctx.rotate(-0.35);
-      // Bowstring
-      ctx.strokeStyle = '#E9D5FF';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(-26, -68);
-      ctx.lineTo(-50, 0);
-      ctx.lineTo(-26, 68);
-      ctx.stroke();
-
-      // Curved bow limbs
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 18;
-      ctx.beginPath();
-      ctx.arc(-44, 0, 74, -1.15, 1.15);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#6D28D9';
-      ctx.lineWidth = 9;
-      ctx.beginPath();
-      ctx.arc(-44, 0, 74, -1.15, 1.15);
-      ctx.stroke();
-
-      // Three glowing arrows fanning forward!
-      const angles = [-0.24, 0, 0.24];
-      for (const a of angles) {
-        ctx.save();
-        ctx.rotate(a);
-        ctx.strokeStyle = '#FFE66D';
-        ctx.lineWidth = 7;
-        ctx.beginPath();
-        ctx.moveTo(-46, 0);
-        ctx.lineTo(54, 0);
-        ctx.stroke();
-
-        // Arrowhead
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.moveTo(72, 0);
-        ctx.lineTo(44, -11);
-        ctx.lineTo(44, 11);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-      break;
-    }
-  }
-
+  // Second crisp pass for sharp details
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
+  ctx.drawImage(img, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
   ctx.restore();
 }
 
-function drawSpecialOverlay(ctx: CanvasRenderingContext2D, special: SpecialType): void {
+function drawSpecialOverlay(
+  ctx: CanvasRenderingContext2D,
+  special: SpecialType,
+  specialImgs: {
+    eliter4k: HTMLImageElement | null;
+    splatbomb: HTMLImageElement | null;
+    booyah: HTMLImageElement | null;
+  },
+): void {
   if (special === 'none') return;
   const cx = SIZE / 2;
   const cy = SIZE / 2;
 
   ctx.save();
   if (special === 'eliter4k') {
-    // Bold vertical targeting glow + E-liter 4K Sniper Rifle emblem + Up/Down arrows!
-    const vGlow = ctx.createLinearGradient(cx - 28, 0, cx + 28, 0);
+    // Vertical cyan laser beam + REAL Splatoon 3 E-liter 4K (公升4K) rotated vertically!
+    const vGlow = ctx.createLinearGradient(cx - 32, 0, cx + 32, 0);
     vGlow.addColorStop(0, 'rgba(0, 245, 255, 0)');
     vGlow.addColorStop(0.5, 'rgba(255, 255, 255, 0.92)');
     vGlow.addColorStop(1, 'rgba(0, 245, 255, 0)');
     ctx.fillStyle = vGlow;
-    ctx.fillRect(cx - 26, 8, 52, SIZE - 16);
+    ctx.fillRect(cx - 30, 6, 60, SIZE - 12);
 
-    // Draw E-liter 4K Sniper Rifle vertically
+    // Draw real E-liter 4K image vertically!
+    if (specialImgs.eliter4k && specialImgs.eliter4k.complete && specialImgs.eliter4k.naturalWidth > 0) {
+      drawRealWeaponSprite(ctx, specialImgs.eliter4k, 0.84, -Math.PI / 2);
+    }
+
+    // Crisp "4K" callout tag
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.shadowColor = 'rgba(0,0,0,0.75)';
-    ctx.shadowBlur = 10;
-
-    // Long sniper barrel
+    ctx.translate(cx, cy + 36);
     ctx.fillStyle = '#0F172A';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 5;
-    drawRoundedRect(ctx, -10, -88, 20, 152, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    // Nozzle tip
-    ctx.fillStyle = '#00F5FF';
-    drawRoundedRect(ctx, -14, -98, 28, 20, 6);
-    ctx.fill();
-    ctx.stroke();
-
-    // Iconic 4K Scope lens on side
-    ctx.fillStyle = '#FFD600';
-    drawRoundedRect(ctx, 12, -32, 24, 48, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    // Ink tank stock
-    ctx.fillStyle = '#FF2E93';
-    drawRoundedRect(ctx, -20, 26, 40, 48, 12);
-    ctx.fill();
-    ctx.stroke();
-
-    // "4K" bold badge tag
-    ctx.fillStyle = '#0F172A';
-    drawRoundedRect(ctx, -36, -18, 72, 36, 10);
+    drawRoundedRect(ctx, -30, -15, 60, 30, 9);
     ctx.fill();
     ctx.strokeStyle = '#00F5FF';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.stroke();
-
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 26px system-ui, sans-serif';
+    ctx.font = '900 22px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('4K', 0, 1);
@@ -481,108 +210,72 @@ function drawSpecialOverlay(ctx: CanvasRenderingContext2D, special: SpecialType)
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = '#0F172A';
     ctx.lineWidth = 4;
-    // Top arrow
     ctx.beginPath();
-    ctx.moveTo(cx, 8);
-    ctx.lineTo(cx - 20, 32);
-    ctx.lineTo(cx + 20, 32);
+    ctx.moveTo(cx, 6);
+    ctx.lineTo(cx - 20, 30);
+    ctx.lineTo(cx + 20, 30);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // Bottom arrow
+
     ctx.beginPath();
-    ctx.moveTo(cx, SIZE - 8);
-    ctx.lineTo(cx - 20, SIZE - 32);
-    ctx.lineTo(cx + 20, SIZE - 32);
+    ctx.moveTo(cx, SIZE - 6);
+    ctx.lineTo(cx - 20, SIZE - 30);
+    ctx.lineTo(cx + 20, SIZE - 30);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
   } else if (special === 'splatbomb') {
-    // Horizontal shockwave glow + Iconic Splatoon Tetrahedral Splat Bomb + Left/Right arrows!
-    const hGlow = ctx.createLinearGradient(0, cy - 28, 0, cy + 28);
+    // Horizontal shockwave glow + REAL Splatoon 3 Splat Bomb icon!
+    const hGlow = ctx.createLinearGradient(0, cy - 32, 0, cy + 32);
     hGlow.addColorStop(0, 'rgba(255, 220, 0, 0)');
-    hGlow.addColorStop(0.5, 'rgba(255, 255, 255, 0.9)');
+    hGlow.addColorStop(0.5, 'rgba(255, 255, 255, 0.92)');
     hGlow.addColorStop(1, 'rgba(255, 220, 0, 0)');
     ctx.fillStyle = hGlow;
-    ctx.fillRect(8, cy - 26, SIZE - 16, 52);
+    ctx.fillRect(6, cy - 30, SIZE - 12, 60);
 
-    // Classic Splatoon Pyramid/Triangle Splat Bomb!
+    // Dark badge backing circle so official white/cyan/black Splat Bomb icon pops super clearly
     ctx.save();
-    ctx.translate(cx, cy + 6);
-    ctx.shadowColor = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur = 12;
-
-    // Outer translucent pouch triangle
-    ctx.fillStyle = '#1E293B';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 7;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
     ctx.beginPath();
-    ctx.moveTo(0, -76);
-    ctx.lineTo(74, 54);
-    ctx.lineTo(-74, 54);
-    ctx.closePath();
+    ctx.arc(cx, cy, 66, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
-
-    // Inner bright ink fill inside pouch
-    const bombGrad = ctx.createLinearGradient(0, -50, 0, 48);
-    bombGrad.addColorStop(0, '#FFF59D');
-    bombGrad.addColorStop(0.45, '#FF5252');
-    bombGrad.addColorStop(1, '#FF1744');
-    ctx.fillStyle = bombGrad;
-    ctx.beginPath();
-    ctx.moveTo(0, -52);
-    ctx.lineTo(54, 42);
-    ctx.lineTo(-54, 42);
-    ctx.closePath();
-    ctx.fill();
-
-    // Center warning ring & facet seam
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
     ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(0, -52);
-    ctx.lineTo(0, 42);
+    ctx.strokeStyle = '#FFE45E';
     ctx.stroke();
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(0, 6, 15, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#FF1744';
-    ctx.beginPath();
-    ctx.arc(0, 6, 8, 0, Math.PI * 2);
-    ctx.fill();
     ctx.restore();
+
+    if (specialImgs.splatbomb && specialImgs.splatbomb.complete && specialImgs.splatbomb.naturalWidth > 0) {
+      drawRealWeaponSprite(ctx, specialImgs.splatbomb, 0.56, 0);
+    }
 
     // Left/Right blast arrows
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = '#0F172A';
     ctx.lineWidth = 4;
-    // Left arrow
     ctx.beginPath();
-    ctx.moveTo(8, cy);
-    ctx.lineTo(32, cy - 20);
-    ctx.lineTo(32, cy + 20);
+    ctx.moveTo(6, cy);
+    ctx.lineTo(30, cy - 20);
+    ctx.lineTo(30, cy + 20);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // Right arrow
+
     ctx.beginPath();
-    ctx.moveTo(SIZE - 8, cy);
-    ctx.lineTo(SIZE - 32, cy - 20);
-    ctx.lineTo(SIZE - 32, cy + 20);
+    ctx.moveTo(SIZE - 6, cy);
+    ctx.lineTo(SIZE - 30, cy - 20);
+    ctx.lineTo(SIZE - 30, cy + 20);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
   } else if (special === 'booyah') {
-    // Booyah Bomb rainbow energy orb!
+    // Radiant rainbow Booyah Bomb orb + REAL Splatoon 3 Booyah Bomb (能量讚彈) icon!
     ctx.clearRect(0, 0, SIZE, SIZE);
     const orbGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 118);
     orbGrad.addColorStop(0, '#FFFFFF');
-    orbGrad.addColorStop(0.28, '#FFE45E');
-    orbGrad.addColorStop(0.55, '#FF2E93');
-    orbGrad.addColorStop(0.82, '#00E5FF');
+    orbGrad.addColorStop(0.3, '#FFE45E');
+    orbGrad.addColorStop(0.58, '#FF2E93');
+    orbGrad.addColorStop(0.84, '#00E5FF');
     orbGrad.addColorStop(1, '#6D28D9');
     ctx.fillStyle = orbGrad;
     ctx.beginPath();
@@ -593,71 +286,151 @@ function drawSpecialOverlay(ctx: CanvasRenderingContext2D, special: SpecialType)
     ctx.strokeStyle = '#FFFFFF';
     ctx.stroke();
 
-    // Starburst rays
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 6;
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(a) * 34, cy + Math.sin(a) * 34);
-      ctx.lineTo(cx + Math.cos(a) * 92, cy + Math.sin(a) * 92);
-      ctx.stroke();
+    if (specialImgs.booyah && specialImgs.booyah.complete && specialImgs.booyah.naturalWidth > 0) {
+      drawRealWeaponSprite(ctx, specialImgs.booyah, 0.64, 0);
+    } else {
+      ctx.fillStyle = '#0F172A';
+      ctx.font = '900 44px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('讚!', cx, cy + 3);
     }
-
-    ctx.fillStyle = '#0F172A';
-    ctx.font = '900 44px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('讚!', cx, cy + 3);
   }
   ctx.restore();
 }
 
 export class TextureLibrary {
+  private tileCanvases = new Map<string, [HTMLCanvasElement, CanvasRenderingContext2D]>();
   private tileTextures = new Map<string, THREE.CanvasTexture>();
   private weaponDataUrls = new Map<WeaponId, string>();
   private blockerTextures = new Map<BlockerType, THREE.CanvasTexture>();
+  private imageCache = new Map<string, Promise<HTMLImageElement | null>>();
+  private loadedImages = new Map<string, HTMLImageElement>();
+  private currentRowIds: string[] = [...DEFAULT_WEAPON_ROW_IDS];
+  private loadGen = 0;
+
+  private specialImgs: {
+    eliter4k: HTMLImageElement | null;
+    splatbomb: HTMLImageElement | null;
+    booyah: HTMLImageElement | null;
+  } = {
+    eliter4k: null,
+    splatbomb: null,
+    booyah: null,
+  };
+
   public readonly inkSplatTexture: THREE.CanvasTexture;
-  public readonly specialBadgeUrls: Record<'eliter4k' | 'splatbomb' | 'booyah', string>;
+  public specialBadgeUrls: Record<'eliter4k' | 'splatbomb' | 'booyah', string>;
+  public readonly ready: Promise<void>;
+  private onUpdatedCallback: (() => void) | null = null;
 
   constructor() {
-    // Pre-generate crisp textures for all 6 weapons x 4 special variants
     const specials: SpecialType[] = ['none', 'eliter4k', 'splatbomb', 'booyah'];
     for (const w of WEAPONS) {
       for (const sp of specials) {
-        const [canvas, ctx] = makeCanvas();
-        if (sp !== 'booyah') {
-          drawSplatoonTileBase(ctx, w.primaryHex, w.darkHex, w.rimHex, w.shape);
-          drawWeaponIllustration(ctx, w.id);
-        }
-        drawSpecialOverlay(ctx, sp);
-
-        const tex = new THREE.CanvasTexture(canvas);
+        const key = `${w.id}_${sp}`;
+        const pair = makeCanvas();
+        this.tileCanvases.set(key, pair);
+        const tex = new THREE.CanvasTexture(pair[0]);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = 4;
-        tex.needsUpdate = true;
-        this.tileTextures.set(`${w.id}_${sp}`, tex);
-
-        if (sp === 'none') {
-          this.weaponDataUrls.set(w.id, canvas.toDataURL('image/png'));
-        }
+        this.tileTextures.set(key, tex);
       }
     }
 
-    // Special icon URLs for tutorial legend & HUD
+    // Render immediate color-coded placeholders so first frame never stalls
+    this.redrawAllSlots();
+
     this.specialBadgeUrls = {
       eliter4k: this.renderSpecialPreviewUrl('eliter4k'),
       splatbomb: this.renderSpecialPreviewUrl('splatbomb'),
       booyah: this.renderSpecialPreviewUrl('booyah'),
     };
 
-    // Blocker textures
     this.blockerTextures.set('crate1', this.createCrateTexture(false));
     this.blockerTextures.set('crate2', this.createCrateTexture(true));
     this.blockerTextures.set('ooze', this.createOozeTexture());
-
-    // Ink splat decal texture for turf cells & burst splatters
     this.inkSplatTexture = this.createInkSplatTexture();
+
+    // Load official Splatoon 3 special icons + initial 6 real weapons immediately
+    this.ready = this.initRealSprites();
+  }
+
+  public setOnUpdated(cb: () => void): void {
+    this.onUpdatedCallback = cb;
+  }
+
+  private loadImage(url: string): Promise<HTMLImageElement | null> {
+    const existing = this.imageCache.get(url);
+    if (existing) return existing;
+
+    const promise = new Promise<HTMLImageElement | null>((resolve) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        this.loadedImages.set(url, img);
+        resolve(img);
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+    this.imageCache.set(url, promise);
+    return promise;
+  }
+
+  private async initRealSprites(): Promise<void> {
+    const [e4k, sb, by] = await Promise.all([
+      this.loadImage(SPECIAL_ICON_URLS.eliter4k),
+      this.loadImage(SPECIAL_ICON_URLS.splatbomb),
+      this.loadImage(SPECIAL_ICON_URLS.booyah),
+    ]);
+    this.specialImgs.eliter4k = e4k;
+    this.specialImgs.splatbomb = sb;
+    this.specialImgs.booyah = by;
+
+    await this.setLevelWeapons(this.currentRowIds);
+    this.specialBadgeUrls = {
+      eliter4k: this.renderSpecialPreviewUrl('eliter4k'),
+      splatbomb: this.renderSpecialPreviewUrl('splatbomb'),
+      booyah: this.renderSpecialPreviewUrl('booyah'),
+    };
+    this.onUpdatedCallback?.();
+  }
+
+  /**
+   * Loads the 6 real Splatoon 3 v12.0.0 weapon sprites for the current level and
+   * updates all in-place Three.js CanvasTextures cleanly.
+   */
+  public async setLevelWeapons(rowIds: readonly string[]): Promise<void> {
+    const gen = ++this.loadGen;
+    this.currentRowIds = [...rowIds];
+    const urls = rowIds.map((id) => getWeaponImgUrl(id));
+    await Promise.all(urls.map((u) => this.loadImage(u)));
+    if (gen !== this.loadGen) return;
+    this.redrawAllSlots();
+    this.onUpdatedCallback?.();
+  }
+
+  private redrawAllSlots(): void {
+    this.weaponDataUrls.clear();
+    const specials: SpecialType[] = ['none', 'eliter4k', 'splatbomb', 'booyah'];
+    for (const w of WEAPONS) {
+      const rowId = this.currentRowIds[w.id] ?? w.rowId;
+      const weaponImg = this.loadedImages.get(getWeaponImgUrl(rowId)) ?? null;
+
+      for (const sp of specials) {
+        const key = `${w.id}_${sp}`;
+        const [, ctx] = this.tileCanvases.get(key)!;
+        if (sp !== 'booyah') {
+          drawSplatoonTileBase(ctx, w.primaryHex, w.darkHex, w.rimHex, w.shape);
+          drawRealWeaponSprite(ctx, weaponImg, sp === 'none' ? 0.8 : 0.62, 0);
+        }
+        drawSpecialOverlay(ctx, sp, this.specialImgs);
+
+        const tex = this.tileTextures.get(key)!;
+        tex.needsUpdate = true;
+      }
+    }
   }
 
   private renderSpecialPreviewUrl(sp: 'eliter4k' | 'splatbomb' | 'booyah'): string {
@@ -667,19 +440,29 @@ export class TextureLibrary {
     } else if (sp === 'splatbomb') {
       drawSplatoonTileBase(ctx, '#FF5E00', '#9E2B00', '#FFD1A9', 'roundedSquare');
     }
-    drawSpecialOverlay(ctx, sp);
+    drawSpecialOverlay(ctx, sp, this.specialImgs);
     return canvas.toDataURL('image/png');
   }
 
   public getTileTexture(weaponId: WeaponId, special: SpecialType): THREE.CanvasTexture {
     if (special === 'booyah') {
-      return this.tileTextures.get(`0_booyah`)!;
+      return this.tileTextures.get('0_booyah')!;
     }
     return this.tileTextures.get(`${weaponId}_${special}`)!;
   }
 
   public getWeaponDataUrl(weaponId: WeaponId): string {
-    return this.weaponDataUrls.get(weaponId)!;
+    let url = this.weaponDataUrls.get(weaponId);
+    if (!url) {
+      const pair = this.tileCanvases.get(`${weaponId}_none`)!;
+      url = pair[0].toDataURL('image/png');
+      this.weaponDataUrls.set(weaponId, url);
+    }
+    return url;
+  }
+
+  public getCurrentWeaponRowId(weaponId: WeaponId): string {
+    return this.currentRowIds[weaponId] ?? WEAPONS[weaponId].rowId;
   }
 
   public getBlockerTexture(blocker: BlockerType): THREE.CanvasTexture | null {
@@ -695,13 +478,11 @@ export class TextureLibrary {
     ctx.strokeStyle = steel ? '#CBD5E1' : '#FDE68A';
     ctx.stroke();
 
-    // Inner planks or steel frame
     ctx.strokeStyle = steel ? '#1E293B' : '#78350F';
     ctx.lineWidth = 12;
     drawRoundedRect(ctx, 36, 36, SIZE - 72, SIZE - 72, 14);
     ctx.stroke();
 
-    // Diagonal brace
     ctx.beginPath();
     ctx.moveTo(42, 42);
     ctx.lineTo(SIZE - 42, SIZE - 42);
@@ -709,7 +490,6 @@ export class TextureLibrary {
     ctx.lineTo(42, SIZE - 42);
     ctx.stroke();
 
-    // Grizzco caution stripe / badge in center
     ctx.fillStyle = steel ? '#F59E0B' : '#FACC15';
     drawRoundedRect(ctx, 84, 84, 88, 88, 16);
     ctx.fill();
@@ -734,14 +514,12 @@ export class TextureLibrary {
     const cy = SIZE / 2;
     ctx.clearRect(0, 0, SIZE, SIZE);
 
-    // Fuzzy Alterna ooze frame covering edges so underlying weapon still peeks through!
     ctx.strokeStyle = '#7E22CE';
     ctx.lineWidth = 34;
     ctx.beginPath();
     ctx.arc(cx, cy, 98, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Hairy amber/violet blobs around ring
     for (let i = 0; i < 16; i++) {
       const a = (i * Math.PI * 2) / 16;
       const r = 92 + (i % 2 === 0 ? 12 : -4);
@@ -763,7 +541,6 @@ export class TextureLibrary {
     ctx.clearRect(0, 0, SIZE, SIZE);
     ctx.fillStyle = '#FFFFFF';
 
-    // Organic Splatoon ink blotch
     ctx.beginPath();
     const spikes = 14;
     for (let i = 0; i <= spikes * 4; i++) {
@@ -781,7 +558,6 @@ export class TextureLibrary {
     ctx.closePath();
     ctx.fill();
 
-    // Satellite ink droplets
     const drops = [
       [0.3, 110, 12],
       [1.4, 114, 9],
@@ -798,13 +574,5 @@ export class TextureLibrary {
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
-  }
-
-  public dispose(): void {
-    for (const tex of this.tileTextures.values()) tex.dispose();
-    for (const tex of this.blockerTextures.values()) tex.dispose();
-    this.inkSplatTexture.dispose();
-    this.tileTextures.clear();
-    this.blockerTextures.clear();
   }
 }

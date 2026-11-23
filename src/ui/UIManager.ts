@@ -1,7 +1,19 @@
-import type { BadgeTier, CascadeStep } from '../types';
-import { WEAPONS } from '../data/weapons';
-import { BADGES, BADGE_TIER_META, getBadgeForLevel } from '../data/badges';
-import { CHAPTERS, LEVELS } from '../data/levels';
+import type { BadgeDef, BadgeTier, CascadeStep } from '../types';
+import {
+  DEFAULT_WEAPON_ROW_IDS,
+  TOTAL_SPLAT3_WEAPONS,
+  WEAPONS,
+  getWeaponDisplayName,
+} from '../data/weapons';
+import {
+  BADGES,
+  BADGE_TIER_META,
+  BADGE_TIER_RANGES,
+  SPLAT3_VERSION,
+  TOTAL_BADGES,
+  getBadgeForLevel,
+} from '../data/badges';
+import { CHAPTERS, LEVELS_PER_CHAPTER, TOTAL_LEVELS, getLevelDef } from '../data/levels';
 import { Match3Engine } from '../core/Match3Engine';
 import { SaveManager } from '../core/SaveManager';
 import { TextureLibrary } from '../render/WeaponTextures';
@@ -16,17 +28,24 @@ export interface UICallbacks {
   onModalStateChange: (anyOpen: boolean) => void;
 }
 
+const BADGE_PAGE_SIZE = 60;
+
 export class UIManager {
   private readonly save: SaveManager;
   private readonly textures: TextureLibrary;
   private readonly callbacks: UICallbacks;
 
   private activeChapterId = 1;
-  private activeBadgeTierFilter: BadgeTier | 'all' = 'all';
+  private activeBadgeTierFilter: BadgeTier | 'all' | 'earned' = 'all';
+  private mapSearchQuery = '';
+  private badgeSearchQuery = '';
+  private badgeRenderLimit = BADGE_PAGE_SIZE;
+  private inspectedBadgeLevel: number | null = null;
   private currentLevel = 1;
   private calloutTimer: number | null = null;
 
   // Cached DOM references
+  private readonly hudBadgeThumb = document.getElementById('hud-badge-thumb') as HTMLImageElement;
   private readonly hudLevelNum = document.getElementById('hud-level-num')!;
   private readonly hudLevelName = document.getElementById('hud-level-name')!;
   private readonly hudBadgeHint = document.getElementById('hud-badge-hint')!;
@@ -36,6 +55,7 @@ export class UIManager {
   private readonly hudScore = document.getElementById('hud-score')!;
   private readonly hudStars = document.getElementById('hud-stars')!;
   private readonly hudScoreFill = document.getElementById('hud-score-fill')!;
+  private readonly dockMapLabel = document.getElementById('dock-map-label')!;
   private readonly dockBadgeCount = document.getElementById('dock-badge-count')!;
   private readonly soundIcon = document.getElementById('sound-icon')!;
   private readonly calloutBanner = document.getElementById('callout-banner')!;
@@ -45,19 +65,38 @@ export class UIManager {
   private readonly mapModal = document.getElementById('map-modal')!;
   private readonly badgeModal = document.getElementById('badge-modal')!;
 
+  private readonly mapSearchInput = document.getElementById('map-search-input') as HTMLInputElement;
+  private readonly badgeSearchInput = document.getElementById('badge-search-input') as HTMLInputElement;
+  private readonly badgeDetailBar = document.getElementById('badge-detail-bar')!;
+  private readonly btnBadgeLoadMore = document.getElementById('btn-badge-load-more') as HTMLButtonElement;
+
   constructor(save: SaveManager, textures: TextureLibrary, callbacks: UICallbacks) {
     this.save = save;
     this.textures = textures;
     this.callbacks = callbacks;
 
-    this.populateTitleShowcase();
+    this.dockMapLabel.textContent = `${TOTAL_LEVELS}關`;
+    const subText = document.getElementById('title-sub-text');
+    if (subText) {
+      subText.textContent = `斯普拉遁3 真實武器消消樂・全 ${TOTAL_BADGES.toLocaleString()} 枚官方徽章制霸`;
+    }
+    const teaser = document.getElementById('title-badge-teaser');
+    if (teaser) {
+      teaser.innerHTML = `🏅 收錄 Ver. ${SPLAT3_VERSION} 全部 <strong>${TOTAL_BADGES.toLocaleString()} 枚</strong>斯普拉遁3 原版徽章與 <strong>${TOTAL_SPLAT3_WEAPONS} 把</strong>武器！關卡難度對應徽章真實取得難易度，從 <strong>Lv.1 ${BADGES[0].nameZh}</strong> 一路挑戰至 <strong>Lv.${TOTAL_LEVELS} ${BADGES[TOTAL_LEVELS - 1].nameZh}</strong>！`;
+    }
+    const mapTitle = document.getElementById('map-modal-title');
+    if (mapTitle) {
+      mapTitle.textContent = `${TOTAL_LEVELS.toLocaleString()} 關挑戰地圖 (v${SPLAT3_VERSION})`;
+    }
+
+    this.refreshWeaponShowcase();
     this.bindHudButtons();
     this.bindModalButtons();
     this.updateSoundIcon(save.getData().muted);
     this.updateBadgeCounter();
   }
 
-  private populateTitleShowcase(): void {
+  public refreshWeaponShowcase(): void {
     const showcase = document.getElementById('title-weapon-showcase')!;
     showcase.innerHTML = '';
     for (const w of WEAPONS) {
@@ -65,9 +104,11 @@ export class UIManager {
       div.className = 'weapon-mini';
       const img = document.createElement('img');
       img.src = this.textures.getWeaponDataUrl(w.id);
-      img.alt = w.nameZh;
+      const rowId = this.textures.getCurrentWeaponRowId(w.id) || DEFAULT_WEAPON_ROW_IDS[w.id];
+      const dispName = getWeaponDisplayName(rowId, w.id);
+      img.alt = dispName;
       const span = document.createElement('span');
-      span.textContent = w.shortZh;
+      span.textContent = dispName.length > 6 ? dispName.slice(0, 6) : dispName;
       div.append(img, span);
       showcase.appendChild(div);
     }
@@ -79,7 +120,6 @@ export class UIManager {
   }
 
   private bindHudButtons(): void {
-    // Real-time HUD buttons use instant pointerdown + touch prevention per mobile guide
     bindInstantTouchElement(document.getElementById('btn-level-pill')!, () => this.openMapModal());
     bindInstantTouchElement(document.getElementById('btn-map')!, () => this.openMapModal());
     bindInstantTouchElement(document.getElementById('btn-badges')!, () => this.openBadgeModal());
@@ -89,7 +129,6 @@ export class UIManager {
   }
 
   private bindModalButtons(): void {
-    // Menu / modal buttons keep standard click so they work cleanly across touch & mouse
     document.getElementById('btn-start-play')!.addEventListener('click', () => {
       this.titleOverlay.classList.add('hidden');
       this.notifyModalChange();
@@ -113,7 +152,7 @@ export class UIManager {
     document.getElementById('btn-result-next')!.addEventListener('click', () => {
       this.resultModal.classList.add('hidden');
       this.notifyModalChange();
-      const nextLv = Math.min(100, this.currentLevel + 1);
+      const nextLv = Math.min(TOTAL_LEVELS, this.currentLevel + 1);
       this.callbacks.onSelectLevel(nextLv);
     });
 
@@ -133,6 +172,47 @@ export class UIManager {
     sandboxCheck.addEventListener('change', () => {
       this.save.setSandboxUnlockAll(sandboxCheck.checked);
       this.renderMapGrid();
+    });
+
+    // Map search & direct level jump
+    this.mapSearchInput.addEventListener('input', () => {
+      this.mapSearchQuery = this.mapSearchInput.value.trim();
+      this.renderMapGrid();
+    });
+
+    const doMapJump = (): void => {
+      const q = this.mapSearchInput.value.trim();
+      const num = parseInt(q, 10);
+      if (!Number.isNaN(num) && num >= 1 && num <= TOTAL_LEVELS) {
+        if (this.save.isLevelUnlocked(num)) {
+          this.mapModal.classList.add('hidden');
+          this.notifyModalChange();
+          this.callbacks.onSelectLevel(num);
+        } else {
+          // Jump to that level's chapter in map view
+          this.activeChapterId = Math.floor((num - 1) / LEVELS_PER_CHAPTER) + 1;
+          this.mapSearchInput.value = '';
+          this.mapSearchQuery = '';
+          this.renderMapTabs();
+          this.renderMapGrid();
+        }
+      }
+    };
+    document.getElementById('btn-map-jump')!.addEventListener('click', doMapJump);
+    this.mapSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doMapJump();
+    });
+
+    // Badge locker search & pagination
+    this.badgeSearchInput.addEventListener('input', () => {
+      this.badgeSearchQuery = this.badgeSearchInput.value.trim();
+      this.badgeRenderLimit = BADGE_PAGE_SIZE;
+      this.renderBadgeGrid();
+    });
+
+    this.btnBadgeLoadMore.addEventListener('click', () => {
+      this.badgeRenderLimit += BADGE_PAGE_SIZE;
+      this.renderBadgeGrid();
     });
   }
 
@@ -163,9 +243,11 @@ export class UIManager {
     this.currentLevel = lv.level;
     const badge = getBadgeForLevel(lv.level);
 
+    this.hudBadgeThumb.src = getBadgeImageUrl(badge, false);
+    this.hudBadgeThumb.alt = badge.nameZh;
     this.hudLevelNum.textContent = `LV.${lv.level}`;
-    this.hudLevelName.textContent = lv.nameZh;
-    this.hudBadgeHint.textContent = `通關徽章：${badge.nameZh}（${badge.tierLabelZh}）`;
+    this.hudLevelName.textContent = badge.nameZh;
+    this.hudBadgeHint.textContent = `難度 ${badge.difficulty}/100・${badge.subtitleZh}`;
 
     this.hudMoves.textContent = String(engine.movesLeft);
     this.hudMovesBox.classList.toggle('low-moves', engine.movesLeft <= 5);
@@ -176,7 +258,7 @@ export class UIManager {
     const pct = Math.min(100, (engine.score / lv.starScores[2]) * 100);
     this.hudScoreFill.style.width = `${pct}%`;
 
-    // Render goals
+    // Render goals with real Splatoon 3 weapon icons
     const goals = engine.getGoalProgress();
     this.hudGoals.innerHTML = '';
     for (const gp of goals) {
@@ -185,7 +267,8 @@ export class UIManager {
       if (gp.goal.type === 'weapon' && gp.goal.weaponId !== undefined) {
         const img = document.createElement('img');
         img.src = this.textures.getWeaponDataUrl(gp.goal.weaponId);
-        img.alt = WEAPONS[gp.goal.weaponId].shortZh;
+        const rowId = lv.weaponRowIds[gp.goal.weaponId];
+        img.alt = getWeaponDisplayName(rowId, gp.goal.weaponId);
         chip.appendChild(img);
         const txt = document.createElement('span');
         txt.textContent = gp.completed ? '✓' : `${gp.current}/${gp.goal.target}`;
@@ -222,10 +305,10 @@ export class UIManager {
       text = '🌟 能量讚彈・全場掃蕩！';
       cssType = 'type-combo';
     } else if (hasCross) {
-      text = '⚡ 4K狙擊 × 斯普拉炸彈 十字爆破！';
+      text = '⚡ 公升4K × 斯普拉炸彈 十字爆破！';
       cssType = 'type-combo';
     } else if (hasFull4K) {
-      text = '🎯 4K 狙擊槍・全列貫穿！';
+      text = '🎯 公升4K 狙擊槍・全列貫穿！';
       cssType = 'type-4k';
     } else if (hasFullBomb) {
       text = '💣 斯普拉炸彈・全行爆破！';
@@ -234,10 +317,10 @@ export class UIManager {
       text = `🔥 連鎖 COMBO x${step.comboIndex}！`;
       cssType = 'type-combo';
     } else if (hasV4K && hasHBomb) {
-      text = '🎯 4K 狙擊 + 💣 斯普拉炸彈！';
+      text = '🎯 公升4K + 💣 斯普拉炸彈！';
       cssType = 'type-combo';
     } else if (hasV4K) {
-      text = '🎯 4K 狙擊槍！';
+      text = '🎯 公升4K 狙擊槍！';
       cssType = 'type-4k';
     } else if (hasHBomb) {
       text = '💣 斯普拉炸彈！';
@@ -272,7 +355,8 @@ export class UIManager {
     const nextBtn = document.getElementById('btn-result-next') as HTMLButtonElement;
 
     if (won) {
-      tag.textContent = level === 100 ? 'ALL 100 STAGES CLEAR!!' : 'STAGE CLEAR!';
+      tag.textContent =
+        level === TOTAL_LEVELS ? `ALL ${TOTAL_LEVELS} BADGES COMPLETE!!` : 'STAGE CLEAR!';
       tag.classList.remove('fail');
       title.textContent = `第 ${level} 關 塗地勝利！`;
       starsEl.textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
@@ -286,15 +370,16 @@ export class UIManager {
       const newPill = document.getElementById('result-badge-new')!;
       newPill.textContent = isNewBadge ? 'NEW BADGE!' : '已持有徽章';
       const tierPill = document.getElementById('result-badge-tier')!;
-      tierPill.textContent = `${badge.tierLabelZh}・Lv.${badge.level}`;
+      tierPill.textContent = `${badge.tierLabelZh}・難度 ${badge.difficulty}/100`;
       tierPill.style.color = tierMeta.colorHex;
 
-      (document.getElementById('result-badge-img') as HTMLImageElement).src =
-        getBadgeImageUrl(badge, false);
+      const badgeImg = document.getElementById('result-badge-img') as HTMLImageElement;
+      badgeImg.src = getBadgeImageUrl(badge, false);
+      badgeImg.alt = badge.nameZh;
       document.getElementById('result-badge-name')!.textContent = badge.nameZh;
       document.getElementById('result-badge-sub')!.textContent = badge.subtitleZh;
 
-      if (level < 100) {
+      if (level < TOTAL_LEVELS) {
         nextBtn.classList.remove('hidden');
         nextBtn.textContent = `挑戰第 ${level + 1} 關 →`;
       } else {
@@ -316,7 +401,9 @@ export class UIManager {
   }
 
   public openMapModal(): void {
-    this.activeChapterId = Math.floor((this.currentLevel - 1) / 10) + 1;
+    this.activeChapterId = Math.floor((this.currentLevel - 1) / LEVELS_PER_CHAPTER) + 1;
+    this.mapSearchQuery = '';
+    this.mapSearchInput.value = '';
     this.renderMapTabs();
     this.renderMapGrid();
     this.mapModal.classList.remove('hidden');
@@ -330,9 +417,11 @@ export class UIManager {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `tab-chip${ch.id === this.activeChapterId ? ' active' : ''}`;
-      btn.textContent = `Ch.${ch.id} ${ch.nameZh}`;
+      btn.textContent = `Ch.${ch.id} (${ch.startLevel}-${ch.endLevel})`;
       btn.addEventListener('click', () => {
         this.activeChapterId = ch.id;
+        this.mapSearchQuery = '';
+        this.mapSearchInput.value = '';
         this.renderMapTabs();
         this.renderMapGrid();
       });
@@ -344,23 +433,48 @@ export class UIManager {
     const saveData = this.save.getData();
     const cleared = saveData.earnedBadges.length;
     const totalStars = this.save.getTotalStars();
+    const maxStars = TOTAL_LEVELS * 3;
     document.getElementById('map-progress-sub')!.textContent =
-      `已通關 ${cleared} / 100 關・⭐ ${totalStars} / 300`;
+      `已通關 ${cleared.toLocaleString()} / ${TOTAL_LEVELS.toLocaleString()} 關・⭐ ${totalStars.toLocaleString()} / ${maxStars.toLocaleString()}`;
 
-    const ch = CHAPTERS[this.activeChapterId - 1];
     const banner = document.getElementById('chapter-banner')!;
-    banner.style.borderLeftColor = ch.themeHex;
-    banner.innerHTML = `<strong>第 ${ch.id} 章：${ch.nameZh} (${ch.subtitleZh})</strong><span>Lv.${ch.startLevel} – Lv.${ch.endLevel}</span>`;
-
     const grid = document.getElementById('level-grid')!;
     grid.innerHTML = '';
 
-    for (let lv = ch.startLevel; lv <= ch.endLevel; lv++) {
-      const levelDef = LEVELS[lv - 1];
+    let levelNums: number[] = [];
+    const q = this.mapSearchQuery.toLowerCase();
+    if (q.length > 0) {
+      const exactNum = parseInt(q, 10);
+      const matches = BADGES.filter(
+        (b) =>
+          (!Number.isNaN(exactNum) && b.level === exactNum) ||
+          b.nameZh.toLowerCase().includes(q) ||
+          b.subtitleZh.toLowerCase().includes(q) ||
+          b.tierLabelZh.includes(q),
+      );
+      const shown = matches.slice(0, 60);
+      levelNums = shown.map((b) => b.level);
+      banner.style.borderLeftColor = '#38F9D7';
+      banner.innerHTML = `<strong>搜尋結果：「${this.mapSearchQuery}」</strong><span>找到 ${matches.length} 個關卡${matches.length > 60 ? '（顯示前 60 筆）' : ''}</span>`;
+    } else {
+      const ch = CHAPTERS[this.activeChapterId - 1];
+      const firstBadge = getBadgeForLevel(ch.startLevel);
+      const lastBadge = getBadgeForLevel(ch.endLevel);
+      banner.style.borderLeftColor = ch.themeHex;
+      banner.innerHTML = `<strong>第 ${ch.id} 章：${ch.nameZh} (${ch.subtitleZh})</strong><span>Lv.${ch.startLevel} – Lv.${ch.endLevel}・徽章難度 ${firstBadge.difficulty}–${lastBadge.difficulty}/100</span>`;
+      for (let lv = ch.startLevel; lv <= ch.endLevel; lv++) {
+        levelNums.push(lv);
+      }
+    }
+
+    const frag = document.createDocumentFragment();
+    for (const lv of levelNums) {
+      const levelDef = getLevelDef(lv);
       const badge = getBadgeForLevel(lv);
       const unlocked = this.save.isLevelUnlocked(lv);
       const earned = saveData.earnedBadges.includes(lv);
       const stars = saveData.levelStars[lv] ?? 0;
+      const tierMeta = BADGE_TIER_META[badge.tier];
 
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -368,20 +482,30 @@ export class UIManager {
       btn.disabled = !unlocked;
 
       const img = document.createElement('img');
-      img.src = getBadgeImageUrl(badge, !earned && !unlocked);
+      img.src = getBadgeImageUrl(badge, false);
       img.alt = badge.nameZh;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      if (!earned && !unlocked) {
+        img.className = 'badge-locked-img';
+      }
 
       const info = document.createElement('span');
       info.className = 'level-cell-info';
+
       const numSpan = document.createElement('span');
       numSpan.className = 'level-cell-num';
-      numSpan.textContent = `第 ${lv} 關${unlocked ? '' : ' 🔒'}`;
+      numSpan.innerHTML = `第 ${lv} 關${unlocked ? '' : ' 🔒'} <em class="diff-tag" style="color:${tierMeta.colorHex}">難度${badge.difficulty}</em>`;
+
       const badgeSpan = document.createElement('span');
       badgeSpan.className = 'level-cell-badge';
-      badgeSpan.textContent = `${badge.tierLabelZh}・${badge.nameZh}`;
+      badgeSpan.textContent = badge.nameZh;
+
       const starSpan = document.createElement('span');
       starSpan.className = 'level-cell-stars';
-      starSpan.textContent = earned ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : `${levelDef.moves} 步`;
+      starSpan.textContent = earned
+        ? `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}・${badge.tierLabelZh}`
+        : `${levelDef.moves} 步・${badge.subtitleZh}`;
 
       info.append(numSpan, badgeSpan, starSpan);
       btn.append(img, info);
@@ -393,11 +517,17 @@ export class UIManager {
           this.callbacks.onSelectLevel(lv);
         });
       }
-      grid.appendChild(btn);
+      frag.appendChild(btn);
     }
+    grid.appendChild(frag);
   }
 
   public openBadgeModal(): void {
+    this.badgeRenderLimit = BADGE_PAGE_SIZE;
+    this.badgeSearchQuery = '';
+    this.badgeSearchInput.value = '';
+    this.inspectedBadgeLevel = null;
+    this.badgeDetailBar.classList.add('hidden');
     this.renderSplashtag();
     this.renderBadgeTierTabs();
     this.renderBadgeGrid();
@@ -427,14 +557,16 @@ export class UIManager {
   private renderBadgeTierTabs(): void {
     const container = document.getElementById('badge-tier-tabs')!;
     container.innerHTML = '';
-    const filters: Array<{ key: BadgeTier | 'all'; label: string }> = [
-      { key: 'all', label: '全部 100' },
-      { key: 'rookie', label: '菜鳥 (1-15)' },
-      { key: 'bronze', label: '銅級 (16-35)' },
-      { key: 'silver', label: '銀級 (36-55)' },
-      { key: 'gold', label: '純金 (56-75)' },
-      { key: 'holo', label: '全息 (76-90)' },
-      { key: 'mythic', label: '神話 (91-100)' },
+    const earnedCount = this.save.getData().earnedBadges.length;
+    const filters: Array<{ key: BadgeTier | 'all' | 'earned'; label: string }> = [
+      { key: 'all', label: `全部 ${TOTAL_BADGES}` },
+      { key: 'earned', label: `已獲得 (${earnedCount})` },
+      { key: 'rookie', label: `入門 (${BADGE_TIER_RANGES.rookie.count})` },
+      { key: 'bronze', label: `進階 (${BADGE_TIER_RANGES.bronze.count})` },
+      { key: 'silver', label: `精英 (${BADGE_TIER_RANGES.silver.count})` },
+      { key: 'gold', label: `純金 (${BADGE_TIER_RANGES.gold.count})` },
+      { key: 'holo', label: `全息 (${BADGE_TIER_RANGES.holo.count})` },
+      { key: 'mythic', label: `神話 (${BADGE_TIER_RANGES.mythic.count})` },
     ];
     for (const f of filters) {
       const btn = document.createElement('button');
@@ -443,6 +575,7 @@ export class UIManager {
       btn.textContent = f.label;
       btn.addEventListener('click', () => {
         this.activeBadgeTierFilter = f.key;
+        this.badgeRenderLimit = BADGE_PAGE_SIZE;
         this.renderBadgeTierTabs();
         this.renderBadgeGrid();
       });
@@ -450,54 +583,136 @@ export class UIManager {
     }
   }
 
+  private renderBadgeDetail(badge: BadgeDef): void {
+    const saveData = this.save.getData();
+    const earned = saveData.earnedBadges.includes(badge.level);
+    const equipped = saveData.equippedBadges.includes(badge.level);
+    const unlocked = this.save.isLevelUnlocked(badge.level);
+    const meta = BADGE_TIER_META[badge.tier];
+
+    this.badgeDetailBar.classList.remove('hidden');
+    this.badgeDetailBar.style.borderColor = meta.colorHex;
+    this.badgeDetailBar.innerHTML = '';
+
+    const img = document.createElement('img');
+    img.src = getBadgeImageUrl(badge, false);
+    img.alt = badge.nameZh;
+    if (!earned) img.className = 'badge-locked-img';
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'badge-detail-text';
+    textWrap.innerHTML = `<strong>Lv.${badge.level} ${badge.nameZh}</strong><span>${badge.tierLabelZh}・難度 ${badge.difficulty}/100・${badge.subtitleZh}</span>`;
+
+    const actBtn = document.createElement('button');
+    actBtn.type = 'button';
+    actBtn.className = 'badge-detail-btn';
+    if (earned) {
+      actBtn.textContent = equipped ? '卸下名牌' : '裝備名牌';
+      actBtn.addEventListener('click', () => {
+        this.save.toggleEquipBadge(badge.level);
+        this.renderSplashtag();
+        this.renderBadgeDetail(badge);
+        this.renderBadgeGrid();
+      });
+    } else if (unlocked) {
+      actBtn.textContent = `挑戰第 ${badge.level} 關`;
+      actBtn.addEventListener('click', () => {
+        this.badgeModal.classList.add('hidden');
+        this.notifyModalChange();
+        this.callbacks.onSelectLevel(badge.level);
+      });
+    } else {
+      actBtn.textContent = `第 ${badge.level} 關`;
+      actBtn.disabled = true;
+    }
+
+    this.badgeDetailBar.append(img, textWrap, actBtn);
+  }
+
   private renderBadgeGrid(): void {
     const saveData = this.save.getData();
+    const earnedSet = new Set(saveData.earnedBadges);
+    const equippedSet = new Set(saveData.equippedBadges);
+
     document.getElementById('badge-progress-sub')!.textContent =
-      `已收集 ${saveData.earnedBadges.length} / 100 枚・點擊已解鎖徽章裝備至名牌`;
+      `已收集 ${saveData.earnedBadges.length.toLocaleString()} / ${TOTAL_BADGES.toLocaleString()} 枚・點擊查看條件或裝備名牌`;
+
+    let list: readonly BadgeDef[] = BADGES;
+    if (this.activeBadgeTierFilter === 'earned') {
+      list = BADGES.filter((b) => earnedSet.has(b.level));
+    } else if (this.activeBadgeTierFilter !== 'all') {
+      list = BADGES.filter((b) => b.tier === this.activeBadgeTierFilter);
+    }
+
+    const q = this.badgeSearchQuery.toLowerCase();
+    if (q.length > 0) {
+      const exactNum = parseInt(q, 10);
+      list = list.filter(
+        (b) =>
+          (!Number.isNaN(exactNum) && b.level === exactNum) ||
+          b.nameZh.toLowerCase().includes(q) ||
+          b.subtitleZh.toLowerCase().includes(q),
+      );
+    }
 
     const grid = document.getElementById('badge-grid')!;
     grid.innerHTML = '';
 
-    const list =
-      this.activeBadgeTierFilter === 'all'
-        ? BADGES
-        : BADGES.filter((b) => b.tier === this.activeBadgeTierFilter);
+    const visible = list.slice(0, this.badgeRenderLimit);
+    const frag = document.createDocumentFragment();
 
-    for (const b of list) {
-      const earned = saveData.earnedBadges.includes(b.level);
-      const equipped = saveData.equippedBadges.includes(b.level);
+    for (const b of visible) {
+      const earned = earnedSet.has(b.level);
+      const equipped = equippedSet.has(b.level);
       const meta = BADGE_TIER_META[b.tier];
 
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = `badge-card${earned ? ' earned' : ' locked'}${equipped ? ' equipped' : ''}`;
+      card.className = `badge-card${earned ? ' earned' : ' locked'}${equipped ? ' equipped' : ''}${this.inspectedBadgeLevel === b.level ? ' selected' : ''}`;
       if (earned) {
         card.style.borderColor = equipped ? '#FFD600' : meta.colorHex;
       }
 
       const img = document.createElement('img');
-      img.src = getBadgeImageUrl(b, !earned);
-      img.alt = earned ? b.nameZh : `第 ${b.level} 關徽章`;
+      img.src = getBadgeImageUrl(b, false);
+      img.alt = b.nameZh;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      if (!earned) {
+        img.className = 'badge-locked-img';
+      }
 
       const lvTag = document.createElement('span');
       lvTag.className = 'badge-card-lv';
       lvTag.style.color = meta.colorHex;
-      lvTag.textContent = equipped ? `★ 已裝備` : `Lv.${b.level} ${b.tierLabelZh}`;
+      lvTag.textContent = equipped ? '★ 已裝備' : `Lv.${b.level}・難${b.difficulty}`;
 
       const name = document.createElement('span');
       name.className = 'badge-card-name';
-      name.textContent = earned ? b.nameZh : '？？？';
+      name.textContent = b.nameZh;
 
       card.append(img, lvTag, name);
 
-      if (earned) {
-        card.addEventListener('click', () => {
+      card.addEventListener('click', () => {
+        this.inspectedBadgeLevel = b.level;
+        if (earned) {
           this.save.toggleEquipBadge(b.level);
           this.renderSplashtag();
-          this.renderBadgeGrid();
-        });
-      }
-      grid.appendChild(card);
+        }
+        this.renderBadgeDetail(b);
+        this.renderBadgeGrid();
+      });
+
+      frag.appendChild(card);
+    }
+    grid.appendChild(frag);
+
+    const remaining = list.length - visible.length;
+    if (remaining > 0) {
+      this.btnBadgeLoadMore.classList.remove('hidden');
+      this.btnBadgeLoadMore.textContent = `載入更多徽章（還有 ${remaining.toLocaleString()} 枚）`;
+    } else {
+      this.btnBadgeLoadMore.classList.add('hidden');
     }
   }
 }

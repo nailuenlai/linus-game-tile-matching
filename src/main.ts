@@ -1,5 +1,5 @@
 import './style.css';
-import { getLevelDef } from './data/levels';
+import { TOTAL_LEVELS, getLevelDef } from './data/levels';
 import { Match3Engine } from './core/Match3Engine';
 import { SaveManager } from './core/SaveManager';
 import { SoundEngine } from './core/SoundEngine';
@@ -49,7 +49,15 @@ class SplatCrushApp {
       },
     });
 
-    this.currentLevelNum = Math.min(100, this.save.getData().highestUnlockedLevel);
+    // Re-render HUD weapon chips & title showcase once real Splatoon 3 weapon WebPs finish loading
+    this.textures.setOnUpdated(() => {
+      this.ui.refreshWeaponShowcase();
+      if (this.engine) {
+        this.ui.updateHud(this.engine);
+      }
+    });
+
+    this.currentLevelNum = Math.min(TOTAL_LEVELS, this.save.getData().highestUnlockedLevel);
     this.loadLevel(this.currentLevelNum);
     // Title screen starts open so lock canvas input until dismissed
     this.boardScene.setInputLocked(this.ui.isAnyModalOpen());
@@ -60,9 +68,11 @@ class SplatCrushApp {
 
   public loadLevel(levelNum: number): void {
     this.isBusy = false;
-    this.currentLevelNum = Math.max(1, Math.min(100, Math.floor(levelNum)));
+    this.currentLevelNum = Math.max(1, Math.min(TOTAL_LEVELS, Math.floor(levelNum)));
     const def = getLevelDef(this.currentLevelNum);
     this.engine = new Match3Engine(def);
+    // Swap real Splatoon 3 v12.0.0 weapon textures for this level's loadout (updates Three.js textures in-place!)
+    void this.textures.setLevelWeapons(def.weaponRowIds);
     this.boardScene.syncBoardFromEngine(this.engine);
     this.ui.updateHud(this.engine);
     this.boardScene.setInputLocked(this.ui.isAnyModalOpen());
@@ -70,6 +80,26 @@ class SplatCrushApp {
 
   public getEngine(): Match3Engine {
     return this.engine;
+  }
+
+  public getTotalLevels(): number {
+    return TOTAL_LEVELS;
+  }
+
+  public auditAllLevels(): { total: number; monoOk: boolean; failures: string[] } {
+    const failures: string[] = [];
+    let prevDiff = 0;
+    let monoOk = true;
+    for (let lv = 1; lv <= TOTAL_LEVELS; lv++) {
+      const def = getLevelDef(lv);
+      if (def.difficulty < prevDiff) monoOk = false;
+      prevDiff = def.difficulty;
+      const eng = new Match3Engine(def);
+      if (!eng.findBestHint()) {
+        failures.push(`Lv.${lv}: no valid hint`);
+      }
+    }
+    return { total: TOTAL_LEVELS, monoOk, failures };
   }
 
   public async handleSwap(r1: number, c1: number, r2: number, c2: number): Promise<void> {
@@ -137,9 +167,7 @@ class SplatCrushApp {
     const hint = this.engine.findBestHint();
     if (hint) {
       this.boardScene.setHintPair(hint);
-      // Force immediate hint visibility by announcing
       this.ui.showBanner('💡 試試閃爍的相鄰武器！', 'type-4k');
-      // Nudge idle timer via direct hint ring highlight:
       const sceneAny = this.boardScene as unknown as { idleSeconds: number };
       sceneAny.idleSeconds = 10;
     }

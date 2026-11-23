@@ -10,9 +10,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta
       name="description"
-      content="斯普拉遁3 消消樂 (Splat Crush 3) — 100 關三消益智遊戲，直消 4K 狙擊槍、橫消斯普拉炸彈，過關解鎖 100 枚從菜鳥到傳說的斯普拉遁3 徽章！"
+      content="斯普拉遁3 消消樂 (Splat Crush 3 Ver. 12.0.0) — 收錄斯普拉遁3 12.0.0 全 1,549 枚官方原版徽章與 174 把真實武器，依徽章取得難易度對應 1,549 道關卡！"
     />
-    <title>SPLAT CRUSH 3 — 斯普拉遁3 武器消消樂</title>
+    <title>SPLAT CRUSH 3 — 斯普拉遁3 武器消消樂 (Ver. 12.0.0)</title>
   </head>
   <body>
     <div id="app">
@@ -25,16 +25,17 @@
         <header id="top-bar" class="hud-interactive">
           <div class="top-row">
             <button id="btn-level-pill" class="level-pill" type="button" aria-label="開啟關卡地圖">
+              <img id="hud-badge-thumb" class="hud-badge-thumb" alt="本關徽章" />
               <span class="level-tag" id="hud-level-num">LV.1</span>
               <span class="level-title-wrap">
-                <span class="level-name" id="hud-level-name">蠻頹鎮廣場・開幕暖身</span>
-                <span class="level-reward-hint" id="hud-badge-hint">通關徽章：破舊塗地貼紙</span>
+                <span class="level-name" id="hud-level-name">DJ芥末章魚將軍</span>
+                <span class="level-reward-hint" id="hud-badge-hint">難度 1/100・已擊倒DJ芥末章魚將軍</span>
               </span>
             </button>
 
             <div class="moves-box" id="hud-moves-box" aria-live="polite">
               <span class="moves-label">步數</span>
-              <span class="moves-value" id="hud-moves">22</span>
+              <span class="moves-value" id="hud-moves">25</span>
             </div>
           </div>
 
@@ -58,13 +59,13 @@
         <!-- Bottom Action Dock -->
         <footer id="bottom-dock">
           <div class="mechanic-strip">
-            <span class="mech-chip mech-4k">直消 = 4K 狙擊槍</span>
+            <span class="mech-chip mech-4k">直消 = 公升4K狙擊槍</span>
             <span class="mech-chip mech-bomb">橫消 = 斯普拉炸彈</span>
           </div>
           <nav class="dock-buttons hud-interactive" aria-label="遊戲功能列">
             <button id="btn-map" class="dock-btn" type="button">
               <span class="dock-icon">🗺️</span>
-              <span class="dock-label">100關</span>
+              <span class="dock-label" id="dock-map-label">1549關</span>
             </button>
             <button id="btn-badges" class="dock-btn" type="button">
               <span class="dock-icon">🏅</span>
@@ -89,17 +90,19 @@
       <!-- Title Screen Overlay -->
       <section id="title-overlay" class="overlay-backdrop" aria-label="開始畫面">
         <div class="title-card">
-          <div class="title-kicker">SPLATOON 3 MATCH-3</div>
+          <div class="title-kicker">SPLATOON 3 VER. 12.0.0 MATCH-3</div>
           <h1 class="game-title">SPLAT CRUSH <span>3</span></h1>
-          <p class="title-sub">斯普拉遁3 武器消消樂・100 關徽章制霸</p>
+          <p class="title-sub" id="title-sub-text">
+            斯普拉遁3 真實武器消消樂・全 1,549 枚官方徽章制霸
+          </p>
 
           <div class="weapon-showcase" id="title-weapon-showcase"></div>
 
           <div class="rules-grid">
             <div class="rule-card rule-4k">
-              <img id="rule-img-4k" alt="4K 狙擊槍" />
+              <img id="rule-img-4k" alt="公升4K 狙擊槍" />
               <div>
-                <strong>直向消除 → 4K 狙擊槍</strong>
+                <strong>直向消除 → 公升4K 狙擊槍</strong>
                 <p>直排 3 消發射狙擊雷射；4 消生成貫穿整列 4K！</p>
               </div>
             </div>
@@ -112,8 +115,8 @@
             </div>
           </div>
 
-          <p class="badge-teaser">
-            🏅 每過一關獲得專屬徽章：從第 1 關<strong>菜鳥貼紙</strong>一路晉升到第 100 關<strong>傳說神話王冠</strong>！
+          <p class="badge-teaser" id="title-badge-teaser">
+            🏅 收錄 Ver. 12.0.0 全部 <strong>1,549 枚</strong>斯普拉遁3 原版徽章與 <strong>174 把</strong>武器！關卡難度依徽章真實取得難易度由 <strong>DJ芥末章魚將軍</strong>一路挑戰至 <strong>X比賽全球前10名</strong>！
           </p>
 
           <div class="title-actions">
@@ -121,7 +124,7 @@
               開始塗地挑戰！
             </button>
             <button id="btn-title-map" class="btn-secondary-splat" type="button">
-              查看 100 關
+              查看 1,549 關徽章地圖
             </button>
           </div>
         </div>
@@ -138,13 +141,13 @@
           <div id="result-badge-panel" class="badge-unlock-panel">
             <div class="badge-unlock-header">
               <span id="result-badge-new" class="new-pill">NEW BADGE!</span>
-              <span id="result-badge-tier" class="tier-pill">菜鳥貼紙</span>
+              <span id="result-badge-tier" class="tier-pill">入門新手・難度 1/100</span>
             </div>
             <div class="badge-unlock-body">
               <img id="result-badge-img" class="badge-unlock-img" alt="通關徽章" />
               <div class="badge-unlock-info">
-                <strong id="result-badge-name">破舊塗地貼紙</strong>
-                <p id="result-badge-sub">邊角有點捲起來的免費貼紙</p>
+                <strong id="result-badge-name">DJ芥末章魚將軍</strong>
+                <p id="result-badge-sub">已擊倒DJ芥末章魚將軍</p>
               </div>
             </div>
           </div>
@@ -152,18 +155,18 @@
           <div class="result-actions">
             <button id="btn-result-next" class="btn-primary-splat" type="button">下一關</button>
             <button id="btn-result-retry" class="btn-secondary-splat" type="button">再玩一次</button>
-            <button id="btn-result-badges" class="btn-ghost-splat" type="button">查看徽章櫃</button>
+            <button id="btn-result-badges" class="btn-ghost-splat" type="button">查看徽章圖鑑</button>
           </div>
         </div>
       </section>
 
-      <!-- 100-Level Map Modal -->
-      <section id="map-modal" class="overlay-backdrop hidden" aria-label="100 關卡地圖">
+      <!-- 1,549-Level Map Modal -->
+      <section id="map-modal" class="overlay-backdrop hidden" aria-label="1,549 關卡地圖">
         <div class="modal-card modal-tall">
           <div class="modal-header">
             <div>
-              <h2>100 關挑戰地圖</h2>
-              <p id="map-progress-sub">已通關 0 / 100 關・⭐ 0 / 300</p>
+              <h2 id="map-modal-title">1,549 關挑戰地圖 (v12.0.0)</h2>
+              <p id="map-progress-sub">已通關 0 / 1,549 關・⭐ 0 / 4,647</p>
             </div>
             <button id="btn-close-map" class="close-btn" type="button" aria-label="關閉地圖">✕</button>
           </div>
@@ -171,8 +174,20 @@
           <div class="sandbox-bar">
             <label class="sandbox-toggle" for="toggle-sandbox">
               <input id="toggle-sandbox" type="checkbox" />
-              <span>自由選關模式（立即體驗全部 100 關與高難度徽章）</span>
+              <span>自由選關模式（立即挑戰全部 1,549 關與神話徽章）</span>
             </label>
+          </div>
+
+          <!-- Search or Jump directly to any level 1..1549 -->
+          <div class="filter-search-row">
+            <input
+              id="map-search-input"
+              class="search-input"
+              type="search"
+              placeholder="搜尋徽章/武器名稱，或輸入關卡編號 (1–1549)..."
+              autocomplete="off"
+            />
+            <button id="btn-map-jump" class="jump-btn" type="button">跳轉</button>
           </div>
 
           <!-- Layer 2.5 Horizontal Chapter Tabs -->
@@ -186,13 +201,13 @@
         </div>
       </section>
 
-      <!-- 100-Badge Locker & Splashtag Modal -->
+      <!-- 1,549-Badge Locker & Splashtag Modal -->
       <section id="badge-modal" class="overlay-backdrop hidden" aria-label="徽章圖鑑與名牌">
         <div class="modal-card modal-tall">
           <div class="modal-header">
             <div>
-              <h2>斯普拉遁3 徽章圖鑑</h2>
-              <p id="badge-progress-sub">已收集 0 / 100 枚・點擊已解鎖徽章裝備至名牌</p>
+              <h2>斯普拉遁3 徽章圖鑑 (v12.0.0)</h2>
+              <p id="badge-progress-sub">已收集 0 / 1,549 枚・點擊已解鎖徽章裝備至名牌</p>
             </div>
             <button id="btn-close-badges" class="close-btn" type="button" aria-label="關閉徽章櫃">✕</button>
           </div>
@@ -200,18 +215,35 @@
           <!-- Personal Splashtag Preview -->
           <div class="splashtag-banner">
             <div class="splashtag-left">
-              <span class="splashtag-title">蠻頹鎮三消新星</span>
+              <span class="splashtag-title">蠻頹鎮三消新星・v12.0.0</span>
               <strong class="splashtag-name">INKLING #003</strong>
             </div>
             <div id="splashtag-slots" class="splashtag-slots"></div>
           </div>
 
+          <!-- Search & Filter Bar -->
+          <div class="filter-search-row">
+            <input
+              id="badge-search-input"
+              class="search-input"
+              type="search"
+              placeholder="搜尋 1,549 枚官方徽章（如：公升4K、橫綱、X比賽、★10）..."
+              autocomplete="off"
+            />
+          </div>
+
           <!-- Tier Filter Bar (Horizontal Scroll) -->
           <div id="badge-tier-tabs" class="chapter-tabs scroll-x"></div>
 
-          <!-- 100 Badges Scrollable Grid -->
+          <!-- Selected Badge Inspector Bar -->
+          <div id="badge-detail-bar" class="badge-detail-bar hidden"></div>
+
+          <!-- 1,549 Badges Scrollable Grid (Paginated for silky mobile FPS) -->
           <div id="badge-grid-wrap" class="badge-grid-wrap scroll-y">
             <div id="badge-grid" class="badge-grid"></div>
+            <button id="btn-badge-load-more" class="btn-load-more hidden" type="button">
+              載入更多徽章
+            </button>
           </div>
         </div>
       </section>

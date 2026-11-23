@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Splatoon 3 Match-3 puzzle game with E-liter 4K vertical clears, Splat Bomb horizontal clears, 100 levels, and 100 escalating Splatoon 3 badges.",
+  "description": "Splatoon 3 v12.0.0 Match-3 puzzle game with real Splatoon 3 weapons, E-liter 4K vertical clears, Splat Bomb horizontal clears, and all 1,549 official Splatoon 3 badges mapped by difficulty to 1,549 levels.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
