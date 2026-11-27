@@ -51,6 +51,15 @@ interface ActiveFx {
   cleanup: () => void;
 }
 
+interface TurfVisual {
+  mesh: THREE.Mesh;
+  mat: THREE.MeshBasicMaterial;
+  slotMesh: THREE.Mesh;
+  borderMesh: THREE.Mesh | null;
+  painted: boolean;
+  popScale: number;
+}
+
 const CELL_STEP = 1.08;
 
 export interface BoardSceneCallbacks {
@@ -75,13 +84,14 @@ export class BoardScene {
 
   // Shared geometries (allocated once, reused everywhere for Safari GC safety)
   private readonly slotGeo = new THREE.BoxGeometry(0.98, 0.98, 0.14);
-  private readonly turfGeo = new THREE.PlaneGeometry(0.94, 0.94);
-  private readonly tileBodyGeo = new THREE.CylinderGeometry(0.45, 0.48, 0.18, 24);
-  private readonly tileFaceGeo = new THREE.PlaneGeometry(0.92, 0.92);
+  private readonly turfSlotGeo = new THREE.BoxGeometry(1.04, 1.04, 0.16);
+  private readonly turfGeo = new THREE.PlaneGeometry(1.04, 1.04);
+  private readonly tileBodyGeo = new THREE.CylinderGeometry(0.41, 0.435, 0.18, 24);
+  private readonly tileFaceGeo = new THREE.PlaneGeometry(0.85, 0.85);
   private readonly crateGeo = new THREE.BoxGeometry(0.9, 0.9, 0.34);
   private readonly oozeGeo = new THREE.PlaneGeometry(0.98, 0.98);
-  private readonly selectRingGeo = new THREE.RingGeometry(0.46, 0.56, 32);
-  private readonly hintRingGeo = new THREE.RingGeometry(0.44, 0.54, 32);
+  private readonly selectRingGeo = new THREE.RingGeometry(0.44, 0.54, 32);
+  private readonly hintRingGeo = new THREE.RingGeometry(0.42, 0.52, 32);
   private readonly particleGeo = new THREE.SphereGeometry(0.11, 8, 8);
   private readonly bombTetraGeo = new THREE.TetrahedronGeometry(0.32, 0);
   private readonly beamCylGeo = new THREE.CylinderGeometry(0.16, 0.16, 1, 14, 1, true);
@@ -89,20 +99,30 @@ export class BoardScene {
 
   // Shared materials
   private readonly slotMatA = new THREE.MeshStandardMaterial({
-    color: 0x1e2538,
+    color: 0x1b2234,
     roughness: 0.75,
     metalness: 0.1,
   });
   private readonly slotMatB = new THREE.MeshStandardMaterial({
-    color: 0x252e45,
+    color: 0x222b40,
     roughness: 0.75,
     metalness: 0.1,
   });
-  private readonly turfGoalBorderMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.22,
+  private readonly turfUnpaintedSlotMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0,
+    emissive: 0x94a3b8,
+    emissiveIntensity: 0.25,
+    roughness: 0.55,
+    metalness: 0.08,
   });
+  private readonly turfPaintedSlotMat = new THREE.MeshStandardMaterial({
+    color: 0x00e65c,
+    emissive: 0x00b848,
+    emissiveIntensity: 0.45,
+    roughness: 0.32,
+    metalness: 0.1,
+  });
+  private readonly turfGoalBorderMat: THREE.MeshBasicMaterial;
   private readonly selectRingMat = new THREE.MeshBasicMaterial({
     color: 0xffe45e,
     side: THREE.DoubleSide,
@@ -124,7 +144,7 @@ export class BoardScene {
   private rows = 8;
   private cols = 8;
   private visualTiles = new Map<number, VisualTile>();
-  private turfMeshes = new Map<string, { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial }>();
+  private turfMeshes = new Map<string, TurfVisual>();
   private blockerMeshes = new Map<string, THREE.Mesh>();
   private slotMeshes: THREE.Mesh[] = [];
   private boardFrameMesh: THREE.Mesh | null = null;
@@ -175,6 +195,14 @@ export class BoardScene {
     this.textures = textures;
     this.sound = sound;
     this.callbacks = callbacks;
+
+    this.turfGoalBorderMat = new THREE.MeshBasicMaterial({
+      map: this.textures.turfUnpaintedBorderTexture,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x111524);
@@ -540,33 +568,49 @@ export class BoardScene {
         if (!cell.playable) continue;
 
         const { x, y } = this.cellToWorld(r, c);
-        const slotMesh = new THREE.Mesh(
-          this.slotGeo,
-          (r + c) % 2 === 0 ? this.slotMatA : this.slotMatB,
-        );
-        slotMesh.position.set(x, y, -0.09);
+        const slotMesh = cell.needsTurf
+          ? new THREE.Mesh(
+              this.turfSlotGeo,
+              cell.turfPainted ? this.turfPaintedSlotMat : this.turfUnpaintedSlotMat,
+            )
+          : new THREE.Mesh(
+              this.slotGeo,
+              (r + c) % 2 === 0 ? this.slotMatA : this.slotMatB,
+            );
+        slotMesh.position.set(x, y, cell.needsTurf ? -0.08 : -0.09);
         this.slotsGroup.add(slotMesh);
         this.slotMeshes.push(slotMesh);
 
         if (cell.needsTurf) {
           const mat = new THREE.MeshBasicMaterial({
-            map: this.textures.inkSplatTexture,
-            color: cell.turfPainted ? new THREE.Color(cell.turfColorHex) : new THREE.Color(0x94a3b8),
+            map: cell.turfPainted
+              ? this.textures.turfPaintedTexture
+              : this.textures.turfUnpaintedTexture,
+            color: 0xffffff,
             transparent: true,
-            opacity: cell.turfPainted ? 0.88 : 0.34,
+            opacity: 1,
             depthWrite: false,
           });
           const turfMesh = new THREE.Mesh(this.turfGeo, mat);
-          turfMesh.position.set(x, y, -0.005);
+          turfMesh.position.set(x, y, 0.004);
           this.slotsGroup.add(turfMesh);
-          this.turfMeshes.set(`${r},${c}`, { mesh: turfMesh, mat });
 
-          // White outline highlight on unpainted turf goal cells
+          // Gently pulsing crisp white frame on unpainted turf cells (removed once painted)
+          let borderMesh: THREE.Mesh | null = null;
           if (!cell.turfPainted) {
-            const border = new THREE.Mesh(this.turfGeo, this.turfGoalBorderMat);
-            border.position.set(x, y, -0.01);
-            this.slotsGroup.add(border);
+            borderMesh = new THREE.Mesh(this.turfGeo, this.turfGoalBorderMat);
+            borderMesh.position.set(x, y, 0.008);
+            this.slotsGroup.add(borderMesh);
           }
+
+          this.turfMeshes.set(`${r},${c}`, {
+            mesh: turfMesh,
+            mat,
+            slotMesh,
+            borderMesh,
+            painted: cell.turfPainted,
+            popScale: 1,
+          });
         }
 
         if (cell.blocker !== 'none') {
@@ -599,9 +643,12 @@ export class BoardScene {
     }
     this.visualTiles.clear();
 
-    for (const { mesh, mat } of this.turfMeshes.values()) {
-      this.slotsGroup.remove(mesh);
-      mat.dispose();
+    for (const tm of this.turfMeshes.values()) {
+      this.slotsGroup.remove(tm.mesh);
+      if (tm.borderMesh) {
+        this.slotsGroup.remove(tm.borderMesh);
+      }
+      tm.mat.dispose();
     }
     this.turfMeshes.clear();
 
@@ -858,12 +905,24 @@ export class BoardScene {
         }
       }
 
-      // Update painted turf cells
+      // Update painted turf cells with unmistakable blazing emerald ink + celebratory pop
       for (const tp of step.turfPainted) {
         const tm = this.turfMeshes.get(`${tp.row},${tp.col}`);
-        if (tm) {
-          tm.mat.color.set(tp.colorHex);
-          tm.mat.opacity = 0.9;
+        if (tm && !tm.painted) {
+          tm.painted = true;
+          tm.mat.map = this.textures.turfPaintedTexture;
+          tm.mat.color.setHex(0xffffff);
+          tm.mat.opacity = 1;
+          tm.mat.needsUpdate = true;
+          tm.slotMesh.material = this.turfPaintedSlotMat;
+          if (tm.borderMesh) {
+            this.slotsGroup.remove(tm.borderMesh);
+            tm.borderMesh = null;
+          }
+          tm.popScale = 1.18;
+          tm.mesh.scale.setScalar(tm.popScale);
+          const pos = this.cellToWorld(tp.row, tp.col);
+          this.emitInkParticles(pos.x, pos.y, 0x00ff70, 7);
         }
       }
 
@@ -1258,6 +1317,18 @@ export class BoardScene {
       this.selectRing.scale.setScalar(s);
     }
 
+    // Subtle crisp heartbeat pulse on unpainted turf cell frames + paint pop settle
+    if (this.turfMeshes.size > 0) {
+      this.turfGoalBorderMat.opacity = 0.35 + 0.6 * (0.5 + 0.5 * Math.sin(this.elapsed * 4.5));
+      for (const tm of this.turfMeshes.values()) {
+        if (tm.popScale > 1.001) {
+          tm.popScale += (1 - tm.popScale) * smooth;
+          if (tm.popScale < 1.002) tm.popScale = 1;
+          tm.mesh.scale.setScalar(tm.popScale);
+        }
+      }
+    }
+
     // Idle hint glow after 4.5 seconds of inactivity
     if (!this.inputLocked && this.hintPair) {
       this.idleSeconds += dt;
@@ -1339,6 +1410,7 @@ export class BoardScene {
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     this.clearLevelVisuals();
     this.slotGeo.dispose();
+    this.turfSlotGeo.dispose();
     this.turfGeo.dispose();
     this.tileBodyGeo.dispose();
     this.tileFaceGeo.dispose();
@@ -1352,6 +1424,8 @@ export class BoardScene {
     this.shockRingGeo.dispose();
     this.slotMatA.dispose();
     this.slotMatB.dispose();
+    this.turfUnpaintedSlotMat.dispose();
+    this.turfPaintedSlotMat.dispose();
     this.turfGoalBorderMat.dispose();
     this.selectRingMat.dispose();
     this.hintRingMat.dispose();

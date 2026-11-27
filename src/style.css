@@ -248,6 +248,42 @@ button canvas {
   object-fit: contain;
 }
 
+.turf-swatch-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.turf-swatch {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.turf-swatch.unpainted {
+  background: repeating-linear-gradient(
+    45deg,
+    #f1f5f9 0 3px,
+    #94a3b8 3px 6px
+  );
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.55);
+}
+
+.turf-swatch.painted {
+  background: radial-gradient(circle at 35% 35%, #5cff92, #00e65c 65%, #00b848);
+  border: 1.5px solid #8cffb2;
+  box-shadow: 0 0 6px rgba(0, 230, 92, 0.75);
+}
+
+.turf-arrow {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
 .score-box {
   flex: 0.9;
   min-width: 118px;

@@ -278,9 +278,16 @@ export class UIManager {
           ? `🎯 分數 ✓`
           : `🎯 ${gp.current.toLocaleString()}/${gp.goal.target.toLocaleString()}`;
       } else if (gp.goal.type === 'turf') {
-        chip.textContent = gp.completed
-          ? `🎨 塗地 ✓`
-          : `🎨 塗地 ${gp.current}/${gp.goal.target}`;
+        const swatchPair = document.createElement('span');
+        swatchPair.className = 'turf-swatch-pair';
+        swatchPair.innerHTML =
+          '<i class="turf-swatch unpainted"></i><span class="turf-arrow">→</span><i class="turf-swatch painted"></i>';
+        chip.appendChild(swatchPair);
+        const txt = document.createElement('span');
+        txt.textContent = gp.completed
+          ? `塗地 ✓`
+          : `塗地 ${gp.current}/${gp.goal.target}`;
+        chip.appendChild(txt);
       } else if (gp.goal.type === 'crate') {
         chip.textContent = gp.completed
           ? `📦 障礙 ✓`

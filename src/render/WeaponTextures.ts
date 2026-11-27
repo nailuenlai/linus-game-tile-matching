@@ -320,6 +320,9 @@ export class TextureLibrary {
   };
 
   public readonly inkSplatTexture: THREE.CanvasTexture;
+  public readonly turfUnpaintedTexture: THREE.CanvasTexture;
+  public readonly turfPaintedTexture: THREE.CanvasTexture;
+  public readonly turfUnpaintedBorderTexture: THREE.CanvasTexture;
   public specialBadgeUrls: Record<'eliter4k' | 'splatbomb' | 'booyah', string>;
   public readonly ready: Promise<void>;
   private onUpdatedCallback: (() => void) | null = null;
@@ -351,6 +354,9 @@ export class TextureLibrary {
     this.blockerTextures.set('crate2', this.createCrateTexture(true));
     this.blockerTextures.set('ooze', this.createOozeTexture());
     this.inkSplatTexture = this.createInkSplatTexture();
+    this.turfUnpaintedTexture = this.createTurfUnpaintedTexture();
+    this.turfPaintedTexture = this.createTurfPaintedTexture();
+    this.turfUnpaintedBorderTexture = this.createTurfUnpaintedBorderTexture();
 
     // Load official Splatoon 3 special icons + initial 6 real weapons immediately
     this.ready = this.initRealSprites();
@@ -570,6 +576,155 @@ export class TextureLibrary {
       ctx.arc(cx + Math.cos(ang) * dist, cy + Math.sin(ang) * dist, rad, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  /**
+   * Unpainted Turf cell (未完成): crisp bright chalk-white pad with bold
+   * diagonal stencil stripes, thick white rim, and high-contrast corner brackets.
+   */
+  private createTurfUnpaintedTexture(): THREE.CanvasTexture {
+    const [canvas, ctx] = makeCanvas();
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // Bright chalk-white rounded pad
+    drawRoundedRect(ctx, 4, 4, SIZE - 8, SIZE - 8, 24);
+    ctx.fillStyle = '#F1F5F9';
+    ctx.fill();
+
+    // Diagonal unpainted-floor stripes clipped inside pad
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = '#94A3B8';
+    ctx.lineWidth = 16;
+    for (let offset = -SIZE; offset <= SIZE * 2; offset += 36) {
+      ctx.beginPath();
+      ctx.moveTo(offset, 0);
+      ctx.lineTo(offset + SIZE, SIZE);
+      ctx.stroke();
+    }
+
+    // Subtle cool center vignette so bright weapon tiles pop cleanly on top
+    const shade = ctx.createRadialGradient(SIZE / 2, SIZE / 2, 18, SIZE / 2, SIZE / 2, 118);
+    shade.addColorStop(0, 'rgba(15, 23, 42, 0.22)');
+    shade.addColorStop(0.75, 'rgba(15, 23, 42, 0.08)');
+    shade.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.restore();
+
+    // Crisp pure-white outer frame
+    drawRoundedRect(ctx, 9, 9, SIZE - 18, SIZE - 18, 20);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.stroke();
+
+    // Dashed slate inner stencil border
+    ctx.save();
+    drawRoundedRect(ctx, 20, 20, SIZE - 40, SIZE - 40, 14);
+    ctx.setLineDash([14, 10]);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#334155';
+    ctx.stroke();
+    ctx.restore();
+
+    // Bold high-contrast corner target L-brackets visible right beside circular tiles
+    ctx.strokeStyle = '#0F172A';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const m = 15;
+    const len = 26;
+    const corners: Array<[number, number, number, number]> = [
+      [m, m, 1, 1],
+      [SIZE - m, m, -1, 1],
+      [m, SIZE - m, 1, -1],
+      [SIZE - m, SIZE - m, -1, -1],
+    ];
+    for (const [cx, cy, dx, dy] of corners) {
+      ctx.beginPath();
+      ctx.moveTo(cx + dx * len, cy);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx, cy + dy * len);
+      ctx.stroke();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  /**
+   * Painted Turf cell (已完成): blazing saturated Splatoon neon emerald-green ink pad
+   * with glossy wet corner highlights and bright glowing mint-green perimeter.
+   */
+  private createTurfPaintedTexture(): THREE.CanvasTexture {
+    const [canvas, ctx] = makeCanvas();
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // Rich neon emerald-green ink fill
+    drawRoundedRect(ctx, 4, 4, SIZE - 8, SIZE - 8, 24);
+    const grad = ctx.createRadialGradient(SIZE * 0.45, SIZE * 0.42, 16, SIZE / 2, SIZE / 2, 148);
+    grad.addColorStop(0, '#5CFF92');
+    grad.addColorStop(0.55, '#00E65C');
+    grad.addColorStop(1, '#00B848');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Wet Splatoon ink corner droplets & sheen visible around the weapon tile
+    ctx.save();
+    ctx.clip();
+    const cornerBlobs: Array<[number, number, number]> = [
+      [26, 26, 22],
+      [SIZE - 26, 26, 20],
+      [26, SIZE - 26, 20],
+      [SIZE - 26, SIZE - 26, 22],
+    ];
+    for (const [bx, by, br] of cornerBlobs) {
+      ctx.fillStyle = 'rgba(0, 110, 42, 0.32)';
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(220, 255, 232, 0.85)';
+      ctx.beginPath();
+      ctx.arc(bx - 4, by - 4, br * 0.34, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Glowing bright neon-mint outer border
+    drawRoundedRect(ctx, 9, 9, SIZE - 18, SIZE - 18, 20);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = '#8CFFB2';
+    ctx.stroke();
+
+    // Crisp deep-emerald outer edge definition
+    drawRoundedRect(ctx, 4, 4, SIZE - 8, SIZE - 8, 24);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#005A24';
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  /**
+   * Hollow bright outer frame for gently pulsing unpainted turf cells.
+   */
+  private createTurfUnpaintedBorderTexture(): THREE.CanvasTexture {
+    const [canvas, ctx] = makeCanvas();
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    drawRoundedRect(ctx, 7, 7, SIZE - 14, SIZE - 14, 22);
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.stroke();
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;

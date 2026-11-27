@@ -86,7 +86,7 @@ export class Match3Engine {
           playable,
           needsTurf,
           turfPainted: false,
-          turfColorHex: '#FFD600',
+          turfColorHex: '#00E65C',
           blocker,
           tile: null,
         });
@@ -745,7 +745,7 @@ export class Match3Engine {
         scoreGained += basePoints;
 
         if (cell.needsTurf && !cell.turfPainted) {
-          const paintHex = getWeapon(t.weaponId).primaryHex;
+          const paintHex = '#00E65C';
           cell.turfPainted = true;
           cell.turfColorHex = paintHex;
           this.turfPaintedCount++;
@@ -755,9 +755,9 @@ export class Match3Engine {
         cell.tile = null;
       } else if (cell.needsTurf && !cell.turfPainted && cell.blocker === 'none') {
         cell.turfPainted = true;
-        cell.turfColorHex = '#FFD600';
+        cell.turfColorHex = '#00E65C';
         this.turfPaintedCount++;
-        turfPainted.push({ row: r, col: c, colorHex: '#FFD600' });
+        turfPainted.push({ row: r, col: c, colorHex: '#00E65C' });
         scoreGained += 100;
       }
     }
