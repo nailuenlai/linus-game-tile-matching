@@ -29,6 +29,16 @@ jobs:
         run: npm ci
       - name: Build static site
         run: npm run build
+      - name: Setup Python & Playwright
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright Chromium
+        run: |
+          python3 -m pip install --upgrade playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Run Playwright verification suite
+        run: npm test
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

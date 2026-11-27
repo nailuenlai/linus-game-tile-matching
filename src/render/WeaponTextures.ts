@@ -6,6 +6,7 @@ import {
   WEAPONS,
   getWeaponImgUrl,
 } from '../data/weapons';
+import { TURF_COLORS } from '../data/theme';
 
 const SIZE = 256;
 
@@ -592,13 +593,13 @@ export class TextureLibrary {
 
     // Bright chalk-white rounded pad
     drawRoundedRect(ctx, 4, 4, SIZE - 8, SIZE - 8, 24);
-    ctx.fillStyle = '#F1F5F9';
+    ctx.fillStyle = TURF_COLORS.unpaintedBaseHex;
     ctx.fill();
 
     // Diagonal unpainted-floor stripes clipped inside pad
     ctx.save();
     ctx.clip();
-    ctx.strokeStyle = '#94A3B8';
+    ctx.strokeStyle = TURF_COLORS.unpaintedStripeHex;
     ctx.lineWidth = 16;
     for (let offset = -SIZE; offset <= SIZE * 2; offset += 36) {
       ctx.beginPath();
@@ -619,7 +620,7 @@ export class TextureLibrary {
     // Crisp pure-white outer frame
     drawRoundedRect(ctx, 9, 9, SIZE - 18, SIZE - 18, 20);
     ctx.lineWidth = 14;
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = TURF_COLORS.unpaintedBorderHex;
     ctx.stroke();
 
     // Dashed slate inner stencil border
@@ -627,12 +628,12 @@ export class TextureLibrary {
     drawRoundedRect(ctx, 20, 20, SIZE - 40, SIZE - 40, 14);
     ctx.setLineDash([14, 10]);
     ctx.lineWidth = 5;
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = TURF_COLORS.unpaintedDashHex;
     ctx.stroke();
     ctx.restore();
 
     // Bold high-contrast corner target L-brackets visible right beside circular tiles
-    ctx.strokeStyle = '#0F172A';
+    ctx.strokeStyle = TURF_COLORS.unpaintedBracketHex;
     ctx.lineWidth = 7;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -669,9 +670,9 @@ export class TextureLibrary {
     // Rich neon emerald-green ink fill
     drawRoundedRect(ctx, 4, 4, SIZE - 8, SIZE - 8, 24);
     const grad = ctx.createRadialGradient(SIZE * 0.45, SIZE * 0.42, 16, SIZE / 2, SIZE / 2, 148);
-    grad.addColorStop(0, '#5CFF92');
-    grad.addColorStop(0.55, '#00E65C');
-    grad.addColorStop(1, '#00B848');
+    grad.addColorStop(0, TURF_COLORS.paintedCenterHex);
+    grad.addColorStop(0.55, TURF_COLORS.paintedHex);
+    grad.addColorStop(1, TURF_COLORS.paintedEdgeHex);
     ctx.fillStyle = grad;
     ctx.fill();
 
@@ -700,13 +701,13 @@ export class TextureLibrary {
     // Glowing bright neon-mint outer border
     drawRoundedRect(ctx, 9, 9, SIZE - 18, SIZE - 18, 20);
     ctx.lineWidth = 14;
-    ctx.strokeStyle = '#8CFFB2';
+    ctx.strokeStyle = TURF_COLORS.paintedRimHex;
     ctx.stroke();
 
     // Crisp deep-emerald outer edge definition
     drawRoundedRect(ctx, 4, 4, SIZE - 8, SIZE - 8, 24);
     ctx.lineWidth = 4;
-    ctx.strokeStyle = '#005A24';
+    ctx.strokeStyle = TURF_COLORS.paintedOutlineHex;
     ctx.stroke();
 
     const tex = new THREE.CanvasTexture(canvas);
@@ -723,7 +724,7 @@ export class TextureLibrary {
     ctx.clearRect(0, 0, SIZE, SIZE);
     drawRoundedRect(ctx, 7, 7, SIZE - 14, SIZE - 14, 22);
     ctx.lineWidth = 12;
-    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeStyle = TURF_COLORS.unpaintedBorderHex;
     ctx.stroke();
 
     const tex = new THREE.CanvasTexture(canvas);

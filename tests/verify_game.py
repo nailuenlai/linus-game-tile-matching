@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import time
 from playwright.sync_api import sync_playwright
@@ -12,6 +13,7 @@ def run_tests():
         ["npx", "vite", "preview", "--port", "4173", "--strictPort"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        start_new_session=True,
     )
     time.sleep(2.0)
     errors = []
@@ -190,6 +192,62 @@ def run_tests():
             assert engine_audit["hValid"] and "horizontalBomb" in engine_audit["hEffects"]
             assert "splatbomb" in engine_audit["hSpecials"]
 
+            # 5b. Verify live Turf painting updates both engine count & 3D visuals (removes unpainted border)
+            turf_audit = page.evaluate(
+                """async () => {
+                  const app = window.__splatCrush;
+                  let turfLv = -1;
+                  for (let lv = 1; lv <= app.getTotalLevels(); lv++) {
+                    if (app.getLevelDef(lv).goals.some(g => g.type === 'turf')) {
+                      turfLv = lv;
+                      break;
+                    }
+                  }
+                  app.loadLevel(turfLv);
+                  const eng = app.getEngine();
+                  const target = eng.levelDef.goals.find(g => g.type === 'turf').target;
+                  const beforeVis = app.getTurfVisualState();
+
+                  // Locate 3 horizontal unpainted turf cells with a playable neighbor below the 3rd cell
+                  let swapCoords = null;
+                  for (let r = 0; r < eng.rows - 1 && !swapCoords; r++) {
+                    for (let c = 0; c < eng.cols - 2 && !swapCoords; c++) {
+                      const a = eng.grid[r][c];
+                      const b = eng.grid[r][c + 1];
+                      const d = eng.grid[r][c + 2];
+                      const below = eng.grid[r + 1][c + 2];
+                      if (a.needsTurf && b.needsTurf && d.needsTurf && a.tile && b.tile && d.tile && below.tile) {
+                        a.tile.weaponId = 1;
+                        b.tile.weaponId = 1;
+                        d.tile.weaponId = 2;
+                        below.tile.weaponId = 1;
+                        a.tile.special = 'none';
+                        b.tile.special = 'none';
+                        d.tile.special = 'none';
+                        below.tile.special = 'none';
+                        swapCoords = [r, c + 2, r + 1, c + 2];
+                      }
+                    }
+                  }
+                  app.syncBoard();
+                  await app.handleSwap(...swapCoords);
+                  const afterPainted = eng.turfPaintedCount;
+                  const afterVis = app.getTurfVisualState();
+                  app.loadLevel(1);
+                  return { turfLv, target, beforeVis, afterPainted, afterVis };
+                }"""
+            )
+            print("Turf visual & engine audit:", turf_audit)
+            assert turf_audit["turfLv"] > 0
+            assert turf_audit["beforeVis"]["total"] == turf_audit["target"]
+            assert turf_audit["beforeVis"]["painted"] == 0
+            assert turf_audit["beforeVis"]["unpaintedBorders"] == turf_audit["target"]
+            assert turf_audit["afterPainted"] >= 3
+            assert turf_audit["afterVis"]["painted"] == turf_audit["afterPainted"]
+            assert turf_audit["afterVis"]["unpaintedBorders"] == (
+                turf_audit["target"] - turf_audit["afterPainted"]
+            )
+
             # 6. Clear Lv.1 to inspect official Splatoon 3 DJ Octavio Badge Unlock Modal!
             page.evaluate(
                 """async () => {
@@ -258,7 +316,10 @@ def run_tests():
         assert len(errors) == 0, f"Runtime browser errors detected: {errors}"
         print("ALL PLAYWRIGHT VERIFICATION CHECKS PASSED WITH ZERO ERRORS!")
     finally:
-        server.terminate()
+        try:
+            os.killpg(os.getpgid(server.pid), signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         server.wait(timeout=5)
 
 

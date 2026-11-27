@@ -11,6 +11,7 @@ import type {
   WeaponId,
 } from '../types';
 import { getWeapon } from '../data/weapons';
+import { TURF_COLORS } from '../data/theme';
 
 interface MatchRun {
   orientation: 'h' | 'v';
@@ -86,7 +87,7 @@ export class Match3Engine {
           playable,
           needsTurf,
           turfPainted: false,
-          turfColorHex: '#00E65C',
+          turfColorHex: TURF_COLORS.paintedHex,
           blocker,
           tile: null,
         });
@@ -745,7 +746,7 @@ export class Match3Engine {
         scoreGained += basePoints;
 
         if (cell.needsTurf && !cell.turfPainted) {
-          const paintHex = '#00E65C';
+          const paintHex = TURF_COLORS.paintedHex;
           cell.turfPainted = true;
           cell.turfColorHex = paintHex;
           this.turfPaintedCount++;
@@ -755,9 +756,9 @@ export class Match3Engine {
         cell.tile = null;
       } else if (cell.needsTurf && !cell.turfPainted && cell.blocker === 'none') {
         cell.turfPainted = true;
-        cell.turfColorHex = '#00E65C';
+        cell.turfColorHex = TURF_COLORS.paintedHex;
         this.turfPaintedCount++;
-        turfPainted.push({ row: r, col: c, colorHex: '#00E65C' });
+        turfPainted.push({ row: r, col: c, colorHex: TURF_COLORS.paintedHex });
         scoreGained += 100;
       }
     }

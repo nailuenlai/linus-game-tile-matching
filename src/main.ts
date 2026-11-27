@@ -86,6 +86,20 @@ class SplatCrushApp {
     return TOTAL_LEVELS;
   }
 
+  /** Pure metadata lookup (no 3D scene rebuild or texture fetches). */
+  public getLevelDef(levelNum: number) {
+    return getLevelDef(levelNum);
+  }
+
+  public getTurfVisualState(): { total: number; painted: number; unpaintedBorders: number } {
+    return this.boardScene.getTurfVisualState();
+  }
+
+  public syncBoard(): void {
+    this.boardScene.syncBoardFromEngine(this.engine);
+    this.ui.updateHud(this.engine);
+  }
+
   public auditAllLevels(): { total: number; monoOk: boolean; failures: string[] } {
     const failures: string[] = [];
     let prevDiff = 0;

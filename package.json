@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "python3 tests/verify_game.py",
+    "verify": "npm run build && npm test"
   },
   "dependencies": {
     "three": "^0.174.0"

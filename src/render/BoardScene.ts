@@ -10,6 +10,7 @@ import type {
 import { Match3Engine } from '../core/Match3Engine';
 import { getWeapon } from '../data/weapons';
 import { getChapterForLevel } from '../data/levels';
+import { TURF_COLORS } from '../data/theme';
 import { TextureLibrary } from './WeaponTextures';
 import { SoundEngine } from '../core/SoundEngine';
 
@@ -109,15 +110,15 @@ export class BoardScene {
     metalness: 0.1,
   });
   private readonly turfUnpaintedSlotMat = new THREE.MeshStandardMaterial({
-    color: 0xe2e8f0,
-    emissive: 0x94a3b8,
+    color: TURF_COLORS.unpaintedSlotInt,
+    emissive: TURF_COLORS.unpaintedEmissiveInt,
     emissiveIntensity: 0.25,
     roughness: 0.55,
     metalness: 0.08,
   });
   private readonly turfPaintedSlotMat = new THREE.MeshStandardMaterial({
-    color: 0x00e65c,
-    emissive: 0x00b848,
+    color: TURF_COLORS.paintedSlotInt,
+    emissive: TURF_COLORS.paintedEmissiveInt,
     emissiveIntensity: 0.45,
     roughness: 0.32,
     metalness: 0.1,
@@ -635,6 +636,20 @@ export class BoardScene {
     this.setHintPair(engine.findBestHint());
   }
 
+  public getTurfVisualState(): { total: number; painted: number; unpaintedBorders: number } {
+    let painted = 0;
+    let unpaintedBorders = 0;
+    for (const tm of this.turfMeshes.values()) {
+      if (tm.painted) painted++;
+      if (tm.borderMesh !== null) unpaintedBorders++;
+    }
+    return {
+      total: this.turfMeshes.size,
+      painted,
+      unpaintedBorders,
+    };
+  }
+
   private clearLevelVisuals(): void {
     for (const vt of this.visualTiles.values()) {
       this.tilesGroup.remove(vt.group);
@@ -922,7 +937,7 @@ export class BoardScene {
           tm.popScale = 1.18;
           tm.mesh.scale.setScalar(tm.popScale);
           const pos = this.cellToWorld(tp.row, tp.col);
-          this.emitInkParticles(pos.x, pos.y, 0x00ff70, 7);
+          this.emitInkParticles(pos.x, pos.y, TURF_COLORS.paintedParticleInt, 7);
         }
       }
 
