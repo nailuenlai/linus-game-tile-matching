@@ -1,14 +1,24 @@
 import os
 import signal
 import subprocess
+import sys
 import time
 from playwright.sync_api import sync_playwright
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+
 SHOT_DIR = "/tmp/splat_crush_shots"
 os.makedirs(SHOT_DIR, exist_ok=True)
+T0 = time.monotonic()
+
+
+def log(msg: str) -> None:
+    print(f"[{time.monotonic() - T0:5.1f}s] {msg}", flush=True)
 
 
 def run_tests():
+    log("Starting vite preview server on :4173...")
     server = subprocess.Popen(
         ["npx", "vite", "preview", "--port", "4173", "--strictPort"],
         stdout=subprocess.PIPE,
@@ -81,7 +91,7 @@ def run_tests():
                   };
                 }"""
             )
-            print("Touch-action audit:", touch_audit)
+            log(f"Touch-action audit: {touch_audit}")
             assert touch_audit["html"] == "none"
             assert touch_audit["body"] == "none"
             assert touch_audit["canvas"] == "none"
@@ -109,7 +119,7 @@ def run_tests():
                   };
                 }"""
             )
-            print("Gesture interception audit:", gesture_audit)
+            log(f"Gesture interception audit: {gesture_audit}")
             assert all(gesture_audit.values())
 
             # 4. Dismiss Title Screen and inspect 3D board with real Splatoon 3 weapons
@@ -183,7 +193,7 @@ def run_tests():
                   };
                 }"""
             )
-            print("Engine 1,549-level & 4K/Bomb audit:", engine_audit)
+            log(f"Engine 1,549-level & 4K/Bomb audit: {engine_audit}")
             assert engine_audit["totalLevels"] == 1549, f"Expected 1549 levels, got {engine_audit['totalLevels']}"
             assert engine_audit["monoOk"], "Badge difficulties must be monotonically non-decreasing"
             assert len(engine_audit["levelFailures"]) == 0, f"Level failures: {engine_audit['levelFailures']}"
@@ -237,7 +247,7 @@ def run_tests():
                   return { turfLv, target, beforeVis, afterPainted, afterVis };
                 }"""
             )
-            print("Turf visual & engine audit:", turf_audit)
+            log(f"Turf visual & engine audit: {turf_audit}")
             assert turf_audit["turfLv"] > 0
             assert turf_audit["beforeVis"]["total"] == turf_audit["target"]
             assert turf_audit["beforeVis"]["painted"] == 0
@@ -314,7 +324,7 @@ def run_tests():
 
         assert len(failed_requests) == 0, f"Failed HTTP requests: {failed_requests}"
         assert len(errors) == 0, f"Runtime browser errors detected: {errors}"
-        print("ALL PLAYWRIGHT VERIFICATION CHECKS PASSED WITH ZERO ERRORS!")
+        log("ALL PLAYWRIGHT VERIFICATION CHECKS PASSED WITH ZERO ERRORS!")
     finally:
         try:
             os.killpg(os.getpgid(server.pid), signal.SIGTERM)

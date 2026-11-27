@@ -9,8 +9,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "python3 tests/verify_game.py",
-    "verify": "npm run build && npm test"
+    "check:assets": "node scripts/check_assets.mjs",
+    "test": "python3 -u tests/verify_game.py",
+    "verify": "npm run check:assets && npm run build && npm test"
   },
   "dependencies": {
     "three": "^0.174.0"
